@@ -1,0 +1,7 @@
+﻿<Solution>
+  <Project Path="io.seon.unitysdk.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="io.seon.unitysdk.editor.csproj" />
+  <Project Path="io.seon.unitysdk.editor.tests.csproj" />
+  <Project Path="io.seon.unitysdk.tests.csproj" />
+</Solution>

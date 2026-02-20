@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SEON Unity SDK - External Dependency Manager (EDM4U) declarations.
+
+  iOS:  Resolves SeonSDK via CocoaPods (pod install during Xcode post-process).
+        The resolved artifact is an .xcframework.
+
+  Android: Resolves SEON Android SDK via Gradle/Maven Central.
+           EDM4U adds the dependency to mainTemplate.gradle automatically.
+-->
+<dependencies>
+  <iosPods>
+    <iosPod name="SeonSDK" version="~> 5.6.3"
+            minTargetSdk="15.0" />
+  </iosPods>
+
+  <androidPackages>
+    <androidPackage spec="io.seon.androidsdk:androidsdk:6.8.3">
+      <repositories>
+        <repository>https://repo1.maven.org/maven2/</repository>
+      </repositories>
+    </androidPackage>
+
+    <!-- Force Kotlin stdlib alignment.
+         Starting with Kotlin 1.8, kotlin-stdlib-jdk7/jdk8 were merged into kotlin-stdlib.
+         If any dependency pulls in older separate jdk7/jdk8 modules, Gradle fails with
+         duplicate class errors. These force all modules to the same version. -->
+    <androidPackage spec="org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.0" />
+    <androidPackage spec="org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.0" />
+  </androidPackages>
+</dependencies>
