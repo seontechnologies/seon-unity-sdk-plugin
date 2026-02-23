@@ -4,7 +4,7 @@ public class SeonTest : MonoBehaviour
 {
     void Start()
     {
-        SeonSDK.Init("unity-simulator-test-" + System.Guid.NewGuid());
+        SeonSDK.SetSessionId("unity-simulator-test-" + System.Guid.NewGuid());
         SeonSDK.SetLoggingEnabled(true);
         SeonSDK.GetFingerprint(
             onSuccess: fp => Debug.Log($"✅ REAL Fingerprint: " + fp),

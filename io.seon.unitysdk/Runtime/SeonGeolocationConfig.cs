@@ -31,12 +31,36 @@ namespace Seon
         /// Maximum allowed age of a cached location in seconds.
         /// Default: <c>600</c>.
         /// </summary>
-        public int MaxCacheAgeSec { get; set; } = 600;
+        private int _maxCacheAgeSec = 600;
+        public int MaxCacheAgeSec
+        {
+            get { return _maxCacheAgeSec; }
+            set
+            {
+                if (value < 0)
+                {
+                    throw new System.ArgumentOutOfRangeException(nameof(MaxCacheAgeSec), "MaxCacheAgeSec must not be negative.");
+                }
+                _maxCacheAgeSec = value;
+            }
+        }
 
         /// <summary>
         /// Maximum time in milliseconds to wait for a valid location.
         /// Default: <c>3000</c>.
         /// </summary>
-        public int ServiceTimeoutMs { get; set; } = 3000;
+        private int _serviceTimeoutMs = 3000;
+        public int ServiceTimeoutMs
+        {
+            get { return _serviceTimeoutMs; }
+            set
+            {
+                if (value < 0)
+                {
+                    throw new System.ArgumentOutOfRangeException(nameof(ServiceTimeoutMs), "ServiceTimeoutMs must not be negative.");
+                }
+                _serviceTimeoutMs = value;
+            }
+        }
     }
 }

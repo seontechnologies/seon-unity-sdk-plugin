@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Seon
-{
+namespace Seon {
     /// <summary>
     /// Dispatches actions to the Unity main thread.
     /// Native callbacks from iOS/Android arrive on background threads —
@@ -12,66 +11,78 @@ namespace Seon
     /// <remarks>
     /// Automatically created as a DontDestroyOnLoad GameObject when first accessed.
     /// </remarks>
-    internal class SeonMainThreadDispatcher : MonoBehaviour
-    {
+    internal class SeonMainThreadDispatcher : MonoBehaviour {
         private static SeonMainThreadDispatcher _instance;
-        private static readonly object Lock = new object();
         private readonly Queue<Action> _actionQueue = new Queue<Action>();
 
-        internal static SeonMainThreadDispatcher Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    lock (Lock)
-                    {
-                        if (_instance == null)
-                        {
-                            var go = new GameObject("[SeonMainThreadDispatcher]");
-                            go.hideFlags = HideFlags.HideAndDontSave;
-                            DontDestroyOnLoad(go);
-                            _instance = go.AddComponent<SeonMainThreadDispatcher>();
-                        }
-                    }
-                }
+        /// <summary>
+        /// Auto-create on the main thread at app startup, before any scene loads.
+        /// This guarantees the dispatcher exists before any native callback could
+        /// try to access it from a background thread.
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void AutoInit() {
+            EnsureInitialized();
+        }
+
+        internal static SeonMainThreadDispatcher Instance {
+            get {
+                // should never happen — AutoInit creates this at startup.
+                EnsureInitialized();
                 return _instance;
+            }
+        }
+
+        /// <summary>
+        /// Ensure the dispatcher GameObject exists. Call this before any
+        /// async operation that will deliver callbacks on a background thread.
+        /// </summary>
+        internal static void EnsureInitialized() {
+            if (_instance == null) {
+                Debug.LogWarning("[SeonSDK] Dispatcher was null — recreating. " +
+                    "This should not happen in normal operation.");
+                GameObject go = new GameObject("[SeonMainThreadDispatcher]");
+                go.hideFlags = HideFlags.HideAndDontSave;
+                DontDestroyOnLoad(go);
+                _instance = go.AddComponent<SeonMainThreadDispatcher>();
             }
         }
 
         /// <summary>
         /// Enqueue an action to be executed on the next Update cycle.
         /// </summary>
-        internal void Enqueue(Action action)
-        {
-            if (action == null) return;
-            lock (_actionQueue)
-            {
+        internal void Enqueue(Action action) {
+            if (action == null) {
+                return;
+            }
+            lock (_actionQueue) {
                 _actionQueue.Enqueue(action);
             }
         }
 
-        private void Update()
-        {
-            lock (_actionQueue)
-            {
-                while (_actionQueue.Count > 0)
-                {
-                    var action = _actionQueue.Dequeue();
-                    try
-                    {
+        private void Update() {
+            // Drain queue under lock, then execute outside lock
+            // to avoid blocking producers during callback execution.
+            List<Action> pending = null;
+            lock (_actionQueue) {
+                if (_actionQueue.Count > 0) {
+                    pending = new List<Action>(_actionQueue);
+                    _actionQueue.Clear();
+                }
+            }
+            if (pending != null) {
+                foreach (var action in pending) {
+                    try {
                         action.Invoke();
                     }
-                    catch (Exception ex)
-                    {
+                    catch (Exception ex) {
                         Debug.LogException(ex);
                     }
                 }
             }
         }
 
-        private void OnDestroy()
-        {
+        private void OnDestroy() {
             _instance = null;
         }
     }

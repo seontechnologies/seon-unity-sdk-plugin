@@ -19,45 +19,31 @@ namespace Seon.Tests.Editor
             SeonSDK.SetPlatform(_mockPlatform);
         }
 
-        [TearDown]
-        public void TearDown()
-        {
-            SeonSDK.Cleanup();
-        }
-
-        // ── Init ────────────────────────────────────────────────────
+        // ── SetSessionId ────────────────────────────────────────────
 
         [Test]
-        public void Init_WithValidSessionId_SetsSessionId()
+        public void SetSessionId_WithValidId_SetsSessionId()
         {
-            SeonSDK.Init("test-session-123");
+            SeonSDK.SetSessionId("test-session-123");
             Assert.AreEqual("test-session-123", _mockPlatform.LastSessionId);
         }
 
         [Test]
-        public void Init_WithNullSessionId_ThrowsArgumentNullException()
+        public void SetSessionId_WithNullId_ThrowsArgumentNullException()
         {
-            Assert.Throws<ArgumentNullException>(() => SeonSDK.Init(null));
+            Assert.Throws<ArgumentNullException>(() => SeonSDK.SetSessionId(null));
         }
 
         [Test]
-        public void Init_WithEmptySessionId_ThrowsArgumentNullException()
+        public void SetSessionId_WithEmptyId_ThrowsArgumentNullException()
         {
-            Assert.Throws<ArgumentNullException>(() => SeonSDK.Init(""));
-        }
-
-        // ── SetSessionId ────────────────────────────────────────────
-
-        [Test]
-        public void SetSessionId_BeforeInit_ThrowsInvalidOperationException()
-        {
-            Assert.Throws<InvalidOperationException>(() => SeonSDK.SetSessionId("new-id"));
+            Assert.Throws<ArgumentNullException>(() => SeonSDK.SetSessionId(""));
         }
 
         [Test]
-        public void SetSessionId_AfterInit_UpdatesSessionId()
+        public void SetSessionId_CalledTwice_UpdatesSessionId()
         {
-            SeonSDK.Init("original");
+            SeonSDK.SetSessionId("original");
             SeonSDK.SetSessionId("updated");
             Assert.AreEqual("updated", _mockPlatform.LastSessionId);
         }
@@ -65,15 +51,8 @@ namespace Seon.Tests.Editor
         // ── SetLoggingEnabled ───────────────────────────────────────
 
         [Test]
-        public void SetLoggingEnabled_BeforeInit_ThrowsInvalidOperationException()
+        public void SetLoggingEnabled_PropagatesValue()
         {
-            Assert.Throws<InvalidOperationException>(() => SeonSDK.SetLoggingEnabled(true));
-        }
-
-        [Test]
-        public void SetLoggingEnabled_AfterInit_PropagatesValue()
-        {
-            SeonSDK.Init("session");
             SeonSDK.SetLoggingEnabled(true);
             Assert.IsTrue(_mockPlatform.LoggingEnabled);
         }
@@ -81,9 +60,8 @@ namespace Seon.Tests.Editor
         // ── SetDnsTimeout ───────────────────────────────────────────
 
         [Test]
-        public void SetDnsTimeout_AfterInit_PropagatesValue()
+        public void SetDnsTimeout_PropagatesValue()
         {
-            SeonSDK.Init("session");
             SeonSDK.SetDnsTimeout(5000);
             Assert.AreEqual(5000, _mockPlatform.DnsTimeout);
         }
@@ -93,14 +71,12 @@ namespace Seon.Tests.Editor
         [Test]
         public void SetGeolocationConfig_NullConfig_ThrowsArgumentNull()
         {
-            SeonSDK.Init("session");
             Assert.Throws<ArgumentNullException>(() => SeonSDK.SetGeolocationConfig(null));
         }
 
         [Test]
         public void SetGeolocationConfig_ValidConfig_PropagatesValues()
         {
-            SeonSDK.Init("session");
             var config = new SeonGeolocationConfig
             {
                 Enabled = true,
@@ -119,16 +95,8 @@ namespace Seon.Tests.Editor
         // ── GetFingerprint ──────────────────────────────────────────
 
         [Test]
-        public void GetFingerprint_BeforeInit_ThrowsInvalidOperationException()
-        {
-            Assert.Throws<InvalidOperationException>(() =>
-                SeonSDK.GetFingerprint(_ => { }, _ => { }));
-        }
-
-        [Test]
         public void GetFingerprint_NullCallbacks_ThrowsArgumentNull()
         {
-            SeonSDK.Init("session");
             Assert.Throws<ArgumentNullException>(() =>
                 SeonSDK.GetFingerprint(null, _ => { }));
             Assert.Throws<ArgumentNullException>(() =>
@@ -136,9 +104,8 @@ namespace Seon.Tests.Editor
         }
 
         [Test]
-        public void GetFingerprint_AfterInit_InvokesCallback()
+        public void GetFingerprint_InvokesSuccessCallback()
         {
-            SeonSDK.Init("session");
             string result = null;
             SeonSDK.GetFingerprint(fp => result = fp, _ => { });
             Assert.IsNotNull(result);
@@ -148,16 +115,8 @@ namespace Seon.Tests.Editor
         // ── Behaviour Monitoring ────────────────────────────────────
 
         [Test]
-        public void StartBehaviourMonitoring_BeforeInit_ThrowsInvalidOperationException()
-        {
-            Assert.Throws<InvalidOperationException>(() =>
-                SeonSDK.StartBehaviourMonitoring());
-        }
-
-        [Test]
         public void StopBehaviourMonitoring_WithoutStart_InvokesErrorCallback()
         {
-            SeonSDK.Init("session");
             SeonError error = null;
             SeonSDK.StopBehaviourMonitoring(_ => { }, e => error = e);
             Assert.IsNotNull(error);
@@ -166,7 +125,6 @@ namespace Seon.Tests.Editor
         [Test]
         public void BehaviourMonitoring_StartThenStop_ReturnsFingerprint()
         {
-            SeonSDK.Init("session");
             SeonSDK.StartBehaviourMonitoring();
             string result = null;
             SeonSDK.StopBehaviourMonitoring(fp => result = fp, _ => { });
@@ -203,17 +161,6 @@ namespace Seon.Tests.Editor
             Assert.IsTrue(error.ToString().Contains("GeoStatus=3"));
         }
 
-        // ── Cleanup ─────────────────────────────────────────────────
-
-        [Test]
-        public void Cleanup_ResetInitialized_RequiresReInit()
-        {
-            SeonSDK.Init("session");
-            SeonSDK.Cleanup();
-            Assert.Throws<InvalidOperationException>(() =>
-                SeonSDK.GetFingerprint(_ => { }, _ => { }));
-        }
-
         // ── Mock Platform ───────────────────────────────────────────
 
         private class MockPlatform : ISeonPlatform
@@ -227,7 +174,6 @@ namespace Seon.Tests.Editor
             private const string MockFp = "bW9jay1mcA==";
             private const string MockBehaviourFp = "bW9jay1iZWhhdmlvdXItZnA=";
 
-            public void Init(string sessionId) => LastSessionId = sessionId;
             public void SetSessionId(string sessionId) => LastSessionId = sessionId;
             public void SetLoggingEnabled(bool enabled) => LoggingEnabled = enabled;
             public void SetDnsTimeout(int timeoutMs) => DnsTimeout = timeoutMs;
@@ -247,14 +193,6 @@ namespace Seon.Tests.Editor
                 }
                 _behaviourActive = false;
                 onSuccess(MockBehaviourFp);
-            }
-
-            public void Cleanup()
-            {
-                LastSessionId = null;
-                LoggingEnabled = false;
-                _behaviourActive = false;
-                GeoConfig = null;
             }
         }
     }

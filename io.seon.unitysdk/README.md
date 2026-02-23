@@ -38,7 +38,7 @@ Add the following to your project's `Packages/manifest.json`:
 **Alternative — `.unitypackage`:**
 Download from [Releases](https://github.com/seontechnologies/seon-unity-sdk/releases) and import. You'll also need to install [EDM4U](https://github.com/googlesamples/unity-jar-resolver) manually.
 
-### 3. Integrate
+### 2. Integrate
 
 ```csharp
 using Seon;
@@ -48,7 +48,7 @@ public class FraudCheck : MonoBehaviour
 {
     void Start()
     {
-        SeonSDK.Init("my-session-id");
+        SeonSDK.SetSessionId("my-session-id");
         SeonSDK.SetLoggingEnabled(true);
 
         SeonSDK.GetFingerprint(
@@ -70,17 +70,15 @@ public class FraudCheck : MonoBehaviour
 
 ### `SeonSDK` (Static Class)
 
-| Method                                                       | Description                                              |
-| ------------------------------------------------------------ | -------------------------------------------------------- |
-| `Init(string sessionId)`                                     | Initialize SDK. **Required before any other call.**      |
-| `SetSessionId(string sessionId)`                             | Update session ID after init.                            |
-| `SetLoggingEnabled(bool enabled)`                            | Toggle diagnostic logging.                               |
-| `SetDnsTimeout(int timeoutMs)`                               | DNS timeout in ms. Android only. Pass `0` to skip DNS.   |
-| `SetGeolocationConfig(SeonGeolocationConfig)`                | Configure geolocation. Call before `GetFingerprint`.     |
-| `GetFingerprint(Action<string>, Action<SeonError>)`          | Async device fingerprint (base64 string).                |
-| `StartBehaviourMonitoring()`                                 | Start monitoring sensor data for suspicious activity.    |
-| `StopBehaviourMonitoring(Action<string>, Action<SeonError>)` | Stop monitoring, returns enriched fingerprint.           |
-| `Cleanup()`                                                  | Reset SDK state. `Init` must be called again after this. |
+| Method                                                       | Description                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------- |
+| `SetSessionId(string sessionId)`                             | Set session identifier. **Required before `GetFingerprint`.** |
+| `SetLoggingEnabled(bool enabled)`                            | Toggle diagnostic logging.                                    |
+| `SetDnsTimeout(int timeoutMs)`                               | DNS timeout in ms. Android only. Pass `0` to skip DNS.        |
+| `SetGeolocationConfig(SeonGeolocationConfig)`                | Configure geolocation. Call before `GetFingerprint`.          |
+| `GetFingerprint(Action<string>, Action<SeonError>)`          | Async device fingerprint (base64 string).                     |
+| `StartBehaviourMonitoring()`                                 | Start monitoring sensor data for suspicious activity.         |
+| `StopBehaviourMonitoring(Action<string>, Action<SeonError>)` | Stop monitoring, returns enriched fingerprint.                |
 
 ### `SeonGeolocationConfig`
 
@@ -102,7 +100,7 @@ public class FraudCheck : MonoBehaviour
 ## Behaviour Monitoring
 
 ```csharp
-SeonSDK.Init("session-id");
+SeonSDK.SetSessionId("session-id");
 
 // Start monitoring at the beginning of a user journey
 SeonSDK.StartBehaviourMonitoring();
@@ -150,10 +148,6 @@ Options you can enable:
 By default, post-build processing is **enabled** with geolocation features **disabled** — no Xcode modifications are made unless you explicitly enable them.
 
 You can also configure these manually in Xcode.
-
-## Android ProGuard / R8
-
-ProGuard rules are bundled at `Runtime/Plugins/Android/proguard-seon.pro`. When code minification is enabled, add this file to your ProGuard configuration or ensure it's picked up automatically.
 
 ## Editor Support
 

@@ -9,7 +9,7 @@ namespace Seon.Editor
 {
     /// <summary>
     /// iOS post-build processor for SEON SDK.
-    /// Always embeds the SeonSDK framework (required for runtime linking).
+    /// Always embeds the SeonSDK xcframework (required for runtime linking).
     /// Optionally adds CoreLocation and Info.plist entries via SeonBuildConfig.
     /// </summary>
     public static class SeonPostBuildProcessor
@@ -17,7 +17,9 @@ namespace Seon.Editor
         [PostProcessBuild(999)]
         public static void OnPostProcessBuild(BuildTarget target, string pathToProject)
         {
-            if (target != BuildTarget.iOS) return;
+            if (target != BuildTarget.iOS){ 
+                return; 
+            }
 
             var pbxPath = PBXProject.GetPBXProjectPath(pathToProject);
             var project = new PBXProject();
@@ -26,12 +28,12 @@ namespace Seon.Editor
             var mainTargetGuid = project.GetUnityMainTargetGuid();
             var frameworkTargetGuid = project.GetUnityFrameworkTargetGuid();
 
-            // ── ALWAYS: Embed SeonSDK framework ──────────────────────
+            // ── ALWAYS: Embed SeonSDK xcframework 
             // Without this, the app crashes at launch with a dyld error:
             // "Library not loaded: SeonSDK.framework/SeonSDK"
             EmbedSeonFramework(project, mainTargetGuid, pathToProject);
 
-            // ── OPTIONAL: Config-driven Xcode modifications ──────────
+            // ── OPTIONAL: Config-driven Xcode modifications 
             var config = SeonBuildConfig.Load();
             if (config != null && config.EnablePostBuildProcessor)
             {
@@ -53,7 +55,7 @@ namespace Seon.Editor
         }
 
         /// <summary>
-        /// Find the SeonSDK.framework in the Pods directory and ensure it's
+        /// Find the SeonSDK.xcframework in the Pods directory and ensure it's
         /// embedded (copied into the app bundle) with code signing.
         /// </summary>
         private static void EmbedSeonFramework(PBXProject project, string mainTargetGuid, string pathToProject)
@@ -62,11 +64,13 @@ namespace Seon.Editor
             string frameworkPath = FindSeonFramework(pathToProject);
             if (string.IsNullOrEmpty(frameworkPath))
             {
-                Debug.LogWarning(
-                    "[SeonSDK] Could not find SeonSDK.framework in the Xcode project. " +
-                    "Ensure CocoaPods ran successfully. You may need to manually embed " +
-                    "the framework: Target → General → Frameworks → Embed & Sign.");
-                return;
+                throw new UnityEditor.Build.BuildFailedException(
+                    "[SeonSDK] Could not find SeonSDK.xcframework in the Xcode project. " +
+                    "The app will crash at launch without it.\n\n" +
+                    "Remediation steps:\n" +
+                    "1. Ensure CocoaPods ran successfully (check for Pods/ directory in the Xcode project).\n" +
+                    "2. If using EDM4U, try Assets → External Dependency Manager → iOS Resolver → Install Cocoapods.\n" +
+                    "3. As a last resort, manually embed the framework: Target → General → Frameworks → Embed & Sign.");
             }
 
             // Make path relative to the Xcode project
@@ -88,20 +92,20 @@ namespace Seon.Editor
             UnityEditor.iOS.Xcode.Extensions.PBXProjectExtensions.AddFileToEmbedFrameworks(
                 project, mainTargetGuid, fileGuid);
 
-            Debug.Log($"[SeonSDK] Embedded SeonSDK framework: {relativePath}");
+            Debug.Log("[SeonSDK] Embedded SeonSDK xcframework: " + relativePath);
         }
 
         /// <summary>
-        /// Recursively search for SeonSDK.framework in the Pods directory.
+        /// Recursively search for SeonSDK.xcframework in the Pods directory.
         /// </summary>
         private static string FindSeonFramework(string projectPath)
         {
             // Common locations for CocoaPods frameworks
             string[] searchPaths = new[]
             {
-                Path.Combine(projectPath, "Pods", "SeonSDK", "Frameworks", "SeonSDK.framework"),
-                Path.Combine(projectPath, "Pods", "SeonSDK", "SeonSDK.framework"),
-                Path.Combine(projectPath, "Frameworks", "SeonSDK.framework"),
+                Path.Combine(projectPath, "Pods", "SeonSDK", "Frameworks", "SeonSDK.xcframework"),
+                Path.Combine(projectPath, "Pods", "SeonSDK", "SeonSDK.xcframework"),
+                Path.Combine(projectPath, "Frameworks", "SeonSDK.xcframework"),
             };
 
             foreach (var path in searchPaths)
@@ -114,7 +118,7 @@ namespace Seon.Editor
             string podsDir = Path.Combine(projectPath, "Pods");
             if (Directory.Exists(podsDir))
             {
-                foreach (var dir in Directory.GetDirectories(podsDir, "SeonSDK.framework", SearchOption.AllDirectories))
+                foreach (var dir in Directory.GetDirectories(podsDir, "SeonSDK.xcframework", SearchOption.AllDirectories))
                 {
                     return dir;
                 }

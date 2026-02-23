@@ -1,15 +1,14 @@
 using System;
 
-namespace Seon
-{
+namespace Seon {
     /// <summary>
     /// Main entry point for the SEON Device Intelligence SDK.
     /// Provides a unified C# API wrapping native iOS and Android implementations.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Call <see cref="Init"/> before any other method. The SDK delegates to
-    /// platform-specific implementations selected at compile time:
+    /// Call <see cref="SetSessionId"/> before <see cref="GetFingerprint"/>.
+    /// The SDK delegates to platform-specific implementations selected at compile time:
     /// <list type="bullet">
     ///   <item><description>iOS: Obj-C bridge via DllImport</description></item>
     ///   <item><description>Android: JNI bridge via AndroidJavaObject</description></item>
@@ -19,7 +18,7 @@ namespace Seon
     /// </remarks>
     /// <example>
     /// <code>
-    /// SeonSDK.Init("my-session-id");
+    /// SeonSDK.SetSessionId("my-session-id");
     /// SeonSDK.SetLoggingEnabled(true);
     /// SeonSDK.GetFingerprint(
     ///     onSuccess: fp => Debug.Log(fp),
@@ -27,13 +26,11 @@ namespace Seon
     /// );
     /// </code>
     /// </example>
-    public static class SeonSDK
-    {
+    public static class SeonSDK {
         private static ISeonPlatform _platform;
-        private static bool _initialized;
+        private static string _sessionId;
 
-        static SeonSDK()
-        {
+        static SeonSDK() {
 #if UNITY_EDITOR
             _platform = new SeonEditorStub();
 #elif UNITY_IOS
@@ -46,8 +43,7 @@ namespace Seon
         }
 
         /// <summary>
-        /// Initialize the SDK with a session identifier.
-        /// Must be called once before any other SDK method.
+        /// Set the session identifier. Must be called before <see cref="GetFingerprint"/>.
         /// </summary>
         /// <param name="sessionId">
         /// A unique identifier for this session. This value is included in the
@@ -56,26 +52,12 @@ namespace Seon
         /// <exception cref="ArgumentNullException">
         /// Thrown if <paramref name="sessionId"/> is null or empty.
         /// </exception>
-        public static void Init(string sessionId)
-        {
-            if (string.IsNullOrEmpty(sessionId))
-                throw new ArgumentNullException(nameof(sessionId), "Session ID must not be null or empty.");
+        public static void SetSessionId(string sessionId) {
+            if (string.IsNullOrWhiteSpace(sessionId)) {
+                throw new ArgumentException("Session ID must not be null, empty, or whitespace.", nameof(sessionId));
+            }
 
-            _platform.Init(sessionId);
-            _initialized = true;
-        }
-
-        /// <summary>
-        /// Update the session ID after initialization.
-        /// </summary>
-        /// <param name="sessionId">New session identifier.</param>
-        /// <exception cref="InvalidOperationException">Thrown if SDK is not initialized.</exception>
-        public static void SetSessionId(string sessionId)
-        {
-            EnsureInitialized();
-            if (string.IsNullOrEmpty(sessionId))
-                throw new ArgumentNullException(nameof(sessionId));
-
+            _sessionId = sessionId;
             _platform.SetSessionId(sessionId);
         }
 
@@ -83,9 +65,7 @@ namespace Seon
         /// Enable or disable SDK diagnostic logging.
         /// </summary>
         /// <param name="enabled">True to enable logging, false to disable.</param>
-        public static void SetLoggingEnabled(bool enabled)
-        {
-            EnsureInitialized();
+        public static void SetLoggingEnabled(bool enabled) {
             _platform.SetLoggingEnabled(enabled);
         }
 
@@ -98,9 +78,11 @@ namespace Seon
         /// which means <c>device_ip_*</c> and <c>dns_ip_*</c> fields won't be
         /// populated in the Fraud API response.
         /// </param>
-        public static void SetDnsTimeout(int timeoutMs)
-        {
-            EnsureInitialized();
+        public static void SetDnsTimeout(int timeoutMs) {
+            if (timeoutMs < 0) {
+                throw new ArgumentOutOfRangeException(nameof(timeoutMs), "DNS timeout must not be negative.");
+            }
+
             _platform.SetDnsTimeout(timeoutMs);
         }
 
@@ -111,11 +93,10 @@ namespace Seon
         /// </summary>
         /// <param name="config">Geolocation configuration.</param>
         /// <exception cref="ArgumentNullException">Thrown if config is null.</exception>
-        public static void SetGeolocationConfig(SeonGeolocationConfig config)
-        {
-            EnsureInitialized();
-            if (config == null)
+        public static void SetGeolocationConfig(SeonGeolocationConfig config) {
+            if (config == null) {
                 throw new ArgumentNullException(nameof(config));
+            }
 
             _platform.SetGeolocationConfig(config);
         }
@@ -130,14 +111,20 @@ namespace Seon
         /// <param name="onError">
         /// Invoked on the Unity main thread if fingerprinting fails.
         /// </param>
-        /// <exception cref="InvalidOperationException">Thrown if SDK is not initialized.</exception>
-        public static void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError)
-        {
-            EnsureInitialized();
-            if (onSuccess == null)
+        public static void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) {
+            if (onSuccess == null) {
                 throw new ArgumentNullException(nameof(onSuccess));
-            if (onError == null)
+            }
+            if (onError == null) {
                 throw new ArgumentNullException(nameof(onError));
+            }
+            if (string.IsNullOrEmpty(_sessionId)) {
+                onError(new SeonError {
+                    Code = -1,
+                    Message = "Call SeonSDK.SetSessionId() before using GetFingerprint."
+                });
+                return;
+            }
 
             _platform.GetFingerprint(onSuccess, onError);
         }
@@ -151,11 +138,15 @@ namespace Seon
         /// to detect automation, device farms, and vishing activity.
         /// The analysis needs at least a few seconds of data collection to be effective.
         /// </remarks>
-        /// <exception cref="InvalidOperationException">Thrown if SDK is not initialized.</exception>
         /// <exception cref="SeonException">Thrown if monitoring cannot be started.</exception>
-        public static void StartBehaviourMonitoring()
-        {
-            EnsureInitialized();
+        public static void StartBehaviourMonitoring() {
+            if (string.IsNullOrEmpty(_sessionId)) {
+                throw new SeonException(new SeonError {
+                    Code = -1,
+                    Message = "Call SeonSDK.SetSessionId() before using StartBehaviourMonitoring."
+                });
+            }
+
             _platform.StartBehaviourMonitoring();
         }
 
@@ -169,32 +160,22 @@ namespace Seon
         /// <param name="onError">
         /// Invoked if stopping monitoring or fingerprint generation fails.
         /// </param>
-        /// <exception cref="InvalidOperationException">
-        /// Thrown if SDK is not initialized or <see cref="StartBehaviourMonitoring"/>
-        /// was not called first.
-        /// </exception>
-        public static void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError)
-        {
-            EnsureInitialized();
-            if (onSuccess == null)
+        public static void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) {
+            if (onSuccess == null) {
                 throw new ArgumentNullException(nameof(onSuccess));
-            if (onError == null)
+            }
+            if (onError == null) {
                 throw new ArgumentNullException(nameof(onError));
+            }
+            if (string.IsNullOrEmpty(_sessionId)) {
+                onError(new SeonError {
+                    Code = -1,
+                    Message = "Call SeonSDK.SetSessionId() before using StopBehaviourMonitoring."
+                });
+                return;
+            }
 
             _platform.StopBehaviourMonitoring(onSuccess, onError);
-        }
-
-        /// <summary>
-        /// Reset the SDK state. After calling this, <see cref="Init"/> must be called again.
-        /// Useful for session rotation.
-        /// </summary>
-        public static void Cleanup()
-        {
-            if (_initialized)
-            {
-                _platform.Cleanup();
-                _initialized = false;
-            }
         }
 
         // ── Internal ───────────────────────────────────────────────────
@@ -202,16 +183,8 @@ namespace Seon
         /// <summary>
         /// Replace the platform implementation. For testing only.
         /// </summary>
-        internal static void SetPlatform(ISeonPlatform platform)
-        {
+        internal static void SetPlatform(ISeonPlatform platform) {
             _platform = platform ?? throw new ArgumentNullException(nameof(platform));
-        }
-
-        private static void EnsureInitialized()
-        {
-            if (!_initialized)
-                throw new InvalidOperationException(
-                    "SeonSDK.Init() must be called before using any other SDK method.");
         }
     }
 }

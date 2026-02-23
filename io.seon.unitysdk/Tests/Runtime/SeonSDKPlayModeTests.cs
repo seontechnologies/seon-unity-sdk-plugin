@@ -13,23 +13,10 @@ namespace Seon.Tests.Runtime
     [TestFixture]
     public class SeonSDKPlayModeTests
     {
-        [SetUp]
-        public void SetUp()
-        {
-            // Each test starts with a clean state
-            SeonSDK.Cleanup();
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            SeonSDK.Cleanup();
-        }
-
         [UnityTest]
-        public IEnumerator Init_AndGetFingerprint_ReturnsNonEmptyString()
+        public IEnumerator SetSessionId_AndGetFingerprint_ReturnsNonEmptyString()
         {
-            SeonSDK.Init("playmode-test-" + System.Guid.NewGuid());
+            SeonSDK.SetSessionId("playmode-test-" + System.Guid.NewGuid());
             SeonSDK.SetLoggingEnabled(true);
 
             string fingerprint = null;
@@ -67,7 +54,7 @@ namespace Seon.Tests.Runtime
         [UnityTest]
         public IEnumerator BehaviourMonitoring_StartWaitStop_ReturnsFingerprint()
         {
-            SeonSDK.Init("playmode-behaviour-" + System.Guid.NewGuid());
+            SeonSDK.SetSessionId("playmode-behaviour-" + System.Guid.NewGuid());
             SeonSDK.SetLoggingEnabled(true);
 
             SeonSDK.StartBehaviourMonitoring();
@@ -109,7 +96,7 @@ namespace Seon.Tests.Runtime
         [UnityTest]
         public IEnumerator GetFingerprint_WithGeolocation_ReturnsFingerprint()
         {
-            SeonSDK.Init("playmode-geo-" + System.Guid.NewGuid());
+            SeonSDK.SetSessionId("playmode-geo-" + System.Guid.NewGuid());
             SeonSDK.SetLoggingEnabled(true);
             SeonSDK.SetGeolocationConfig(new SeonGeolocationConfig
             {
@@ -153,7 +140,7 @@ namespace Seon.Tests.Runtime
         [UnityTest]
         public IEnumerator StopBehaviourMonitoring_WithoutStart_ReturnsError()
         {
-            SeonSDK.Init("playmode-error-" + System.Guid.NewGuid());
+            SeonSDK.SetSessionId("playmode-error-" + System.Guid.NewGuid());
 
             SeonError error = null;
             bool completed = false;

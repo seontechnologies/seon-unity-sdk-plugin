@@ -1,260 +1,215 @@
 using System;
 using UnityEngine;
 
-namespace Seon
-{
+namespace Seon {
     /// <summary>
     /// Android platform bridge using Unity's AndroidJavaObject JNI wrapper.
     /// Calls into the SEON Android SDK (io.seon.androidsdk) resolved by EDM4U.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The native SEON SDK dispatches all work to its own internal ExecutorService
-    /// worker threads. C# calls Java methods from Unity's main thread, the SDK
-    /// internally schedules them, and callbacks arrive on executor threads.
-    /// This bridge marshals all callbacks back to Unity's main thread via
+    /// The Seon object is built lazily on first use via <see cref="EnsureSeon"/>.
+    /// Call <see cref="SetSessionId"/> before <see cref="GetFingerprint"/>.
+    /// </para>
+    /// <para>
+    /// The native SDK uses an ExecutorService for async work. Callbacks arrive
+    /// on worker threads and are marshalled to Unity's main thread via
     /// <see cref="SeonMainThreadDispatcher"/>.
     /// </para>
     /// </remarks>
-    internal class SeonAndroidBridge : ISeonPlatform
-    {
-#if UNITY_ANDROID && !UNITY_EDITOR
+    internal class SeonAndroidBridge : ISeonPlatform {
+#if UNITY_ANDROID || UNITY_EDITOR
 
         private AndroidJavaObject _seon;
+        private string _sessionId;
+        private int _dnsTimeoutMs = 3000;
         private bool _behaviourMonitoringActive;
+
+        private AndroidJavaObject Seon {
+            get {
+                if (_seon == null) {
+                    if (string.IsNullOrEmpty(_sessionId)) {
+                        throw new InvalidOperationException(
+                            "Call SeonSDK.SetSessionId() before using any other SDK method.");
+                    }
+                    _seon = BuildSeon();
+                }
+                return _seon;
+            }
+        }
 
         // ── ISeonPlatform implementation ────────────────────────────────
 
-        public void Init(string sessionId)
-        {
-            // Ensure dispatcher exists before any async work
-            _ = SeonMainThreadDispatcher.Instance;
+        public void SetSessionId(string sessionId) {
+            _sessionId = sessionId;
+            // Seon interface has setSessionId() — no rebuild needed
+            if (_seon != null) {
+                _seon.Call("setSessionId", sessionId);
+            }
+        }
 
-            using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
-            using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
-            using (var context = activity.Call<AndroidJavaObject>("getApplicationContext"))
-            {
-                using (var builder = new AndroidJavaObject("io.seon.androidsdk.service.SeonBuilder"))
-                {
-                    builder.Call<AndroidJavaObject>("withContext", context);
-                    builder.Call<AndroidJavaObject>("withSessionId", sessionId);
-                    _seon = builder.Call<AndroidJavaObject>("build");
+        public void SetLoggingEnabled(bool enabled) {
+            Seon.Call("setLoggingEnabled", enabled);
+        }
+
+        public void SetDnsTimeout(int timeoutMs) {
+            _dnsTimeoutMs = timeoutMs;
+
+            // SeonImpl has setDnsTimeout() setter — can be changed after build
+            if (_seon != null) {
+                _seon.Call("setDnsTimeout", timeoutMs);
+            }
+        }
+
+        public void SetGeolocationConfig(SeonGeolocationConfig config) {
+            using (var configBuilder = new AndroidJavaObject("io.seon.androidsdk.dto.SeonGeolocationConfigBuilder")) {
+                // Fluent builder returns 'this' but Unity wraps it in a new
+                // AndroidJavaObject each time — must dispose to avoid JNI leaks.
+                using (configBuilder.Call<AndroidJavaObject>("withPrefetchEnabled", config.PrefetchEnabled)) {
+                }
+                using (configBuilder.Call<AndroidJavaObject>(
+                    "withGeolocationServiceTimeoutMs", config.ServiceTimeoutMs)) {
+                }
+                using (configBuilder.Call<AndroidJavaObject>(
+                    "withMaxGeoLocationCacheAgeSec", config.MaxCacheAgeSec)) {
+                }
+
+                using (var geoConfig = configBuilder.Call<AndroidJavaObject>("build")) {
+                    Seon.Call("setGeolocationEnabled", config.Enabled);
+                    Seon.Call("setGeoLocationConfig", geoConfig);
                 }
             }
         }
 
-        public void SetSessionId(string sessionId)
-        {
-            // Android SDK doesn't have a separate setSessionId after build.
-            // To change session, we need to re-initialize.
-            // Store for potential re-init, but for now re-build.
-            Cleanup();
-            Init(sessionId);
-        }
-
-        public void SetLoggingEnabled(bool enabled)
-        {
-            EnsureSeon();
-            _seon.Call("setLoggingEnabled", enabled);
-        }
-
-        public void SetDnsTimeout(int timeoutMs)
-        {
-            // DNS timeout must be set during build via SeonBuilder.withDnsTimeout().
-            // After build, it cannot be changed. Log a warning.
-            Debug.LogWarning(
-                "[SeonSDK] SetDnsTimeout must be called before Init on Android. " +
-                "Currently this requires re-initialization. Consider calling Init with " +
-                "a new session to apply DNS timeout changes.");
-        }
-
-        public void SetGeolocationConfig(SeonGeolocationConfig config)
-        {
-            EnsureSeon();
-
-            using (var configBuilder = new AndroidJavaObject("io.seon.androidsdk.dto.SeonGeolocationConfigBuilder"))
-            {
-                configBuilder.Call<AndroidJavaObject>("withPrefetchEnabled", config.PrefetchEnabled);
-                configBuilder.Call<AndroidJavaObject>(
-                    "withGeolocationServiceTimeoutMs", config.ServiceTimeoutMs);
-                configBuilder.Call<AndroidJavaObject>(
-                    "withMaxGeoLocationCacheAgeSec", config.MaxCacheAgeSec);
-
-                using (var geoConfig = configBuilder.Call<AndroidJavaObject>("build"))
-                {
-                    _seon.Call("setGeolocationEnabled", config.Enabled);
-                    _seon.Call("setGeoLocationConfig", geoConfig);
-                }
-            }
-        }
-
-        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError)
-        {
-            EnsureSeon();
-
-            try
-            {
+        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) {
+            try {
                 var callback = new SeonCallbackProxy(onSuccess, onError);
-                _seon.Call("getFingerprintBase64", callback);
+                Seon.Call("getFingerprintBase64", callback);
             }
-            catch (AndroidJavaException ex)
-            {
+            catch (AndroidJavaException ex) {
                 SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError
-                    {
+                    onError(new SeonError {
                         Code = -1,
-                        Message = $"Android SDK error: {ex.Message}"
+                        Message = "Android SDK error: " + ex.Message
                     }));
             }
         }
 
-        public void StartBehaviourMonitoring()
-        {
-            EnsureSeon();
-
-            try
-            {
-                _seon.Call("startBehaviourMonitoring");
+        public void StartBehaviourMonitoring() {
+            try {
+                Seon.Call("startBehaviourMonitoring");
                 _behaviourMonitoringActive = true;
             }
-            catch (AndroidJavaException ex)
-            {
-                throw new SeonException(new SeonError
-                {
+            catch (AndroidJavaException ex) {
+                throw new SeonException(new SeonError {
                     Code = -1,
-                    Message = $"Failed to start behaviour monitoring: {ex.Message}"
+                    Message = "Failed to start behaviour monitoring: " + ex.Message
                 });
             }
         }
 
-        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError)
-        {
-            EnsureSeon();
-
-            if (!_behaviourMonitoringActive)
-            {
+        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) {
+            if (!_behaviourMonitoringActive) {
                 SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError
-                    {
+                    onError(new SeonError {
                         Code = -1,
                         Message = "StartBehaviourMonitoring was not called before StopBehaviourMonitoring."
                     }));
                 return;
             }
 
-            try
-            {
+            try {
                 var callback = new SeonCallbackProxy(onSuccess, onError);
-                _seon.Call("stopBehaviourMonitoring", callback);
+                Seon.Call("stopBehaviourMonitoring", callback);
                 _behaviourMonitoringActive = false;
             }
-            catch (AndroidJavaException ex)
-            {
+            catch (AndroidJavaException ex) {
+                _behaviourMonitoringActive = false;
                 SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError
-                    {
+                    onError(new SeonError {
                         Code = -1,
-                        Message = $"Failed to stop behaviour monitoring: {ex.Message}"
+                        Message = "Failed to stop behaviour monitoring: " + ex.Message
                     }));
             }
         }
 
-        public void Cleanup()
-        {
-            _behaviourMonitoringActive = false;
-            if (_seon != null)
-            {
-                _seon.Dispose();
-                _seon = null;
+        // ── Lazy initialization ─────────────────────────────────────────
+
+        private AndroidJavaObject BuildSeon() {
+            SeonMainThreadDispatcher.EnsureInitialized();
+
+            using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+            using (var context = activity.Call<AndroidJavaObject>("getApplicationContext")) {
+                using (var builder = new AndroidJavaObject("io.seon.androidsdk.service.SeonBuilder")) {
+                    // Fluent builder returns 'this' but Unity wraps it in a new
+                    // AndroidJavaObject each time — must dispose to avoid JNI leaks.
+                    using (builder.Call<AndroidJavaObject>("withContext", context)) {
+                    }
+                    using (builder.Call<AndroidJavaObject>("withSessionId", _sessionId)) {
+                    }
+
+                    if (_dnsTimeoutMs != 3000) {
+                        using (builder.Call<AndroidJavaObject>("withDnsTimeout", _dnsTimeoutMs)) {
+                        }
+                    }
+
+                    return builder.Call<AndroidJavaObject>("build");
+                }
             }
         }
 
-        private void EnsureSeon()
-        {
-            if (_seon == null)
-                throw new InvalidOperationException("SEON Android SDK not initialized. Call Init() first.");
-        }
-
-        // ── Android callback proxies ────────────────────────────────────
+        // ── Android callback proxy ──────────────────────────────────────
 
         /// <summary>
-        /// AndroidJavaProxy implementing the SeonCallback Java interface.
-        /// Callbacks arrive on the SDK's ExecutorService thread and are
-        /// marshalled to Unity's main thread.
+        /// AndroidJavaProxy implementing SeonCallbackWithGeo.
+        /// <para>
+        /// SeonCallback is a @FunctionalInterface with a single method:
+        ///   void onComplete(String response)
+        /// SeonCallbackWithGeo extends it with:
+        ///   void onCompleteWithGeoFailure(String response, int geoStatusCode)
+        /// </para>
+        /// <para>
+        /// Errors are NOT delivered via callback — they are thrown as
+        /// SeonException from the SDK method calls (caught as AndroidJavaException).
+        /// </para>
         /// </summary>
-        private class SeonCallbackProxy : AndroidJavaProxy
-        {
+        private class SeonCallbackProxy : AndroidJavaProxy {
             private readonly Action<string> _onSuccess;
             private readonly Action<SeonError> _onError;
 
             public SeonCallbackProxy(Action<string> onSuccess, Action<SeonError> onError)
-                : base("io.seon.androidsdk.service.SeonCallback")
-            {
+                : base("io.seon.androidsdk.service.SeonCallbackWithGeo") {
                 _onSuccess = onSuccess;
                 _onError = onError;
             }
 
-            /// <summary>
-            /// Called by the native SDK on its ExecutorService thread when
-            /// fingerprinting completes successfully.
-            /// </summary>
-            // ReSharper disable once UnusedMember.Local — called via JNI reflection
-            void onComplete(string response)
-            {
-                var callback = _onSuccess;
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback?.Invoke(response));
-            }
-        }
-
-        /// <summary>
-        /// AndroidJavaProxy implementing SeonCallbackWithGeo for geolocation-aware calls.
-        /// </summary>
-        private class SeonCallbackWithGeoProxy : AndroidJavaProxy
-        {
-            private readonly Action<string> _onSuccess;
-            private readonly Action<SeonError> _onError;
-
-            public SeonCallbackWithGeoProxy(Action<string> onSuccess, Action<SeonError> onError)
-                : base("io.seon.androidsdk.service.SeonCallbackWithGeo")
-            {
-                _onSuccess = onSuccess;
-                _onError = onError;
-            }
-
-            // ReSharper disable once UnusedMember.Local
-            void onComplete(string response)
-            {
+            void onComplete(string response) {
                 var callback = _onSuccess;
                 SeonMainThreadDispatcher.Instance.Enqueue(() => callback?.Invoke(response));
             }
 
-            // ReSharper disable once UnusedMember.Local
-            void onCompleteWithGeoFailure(string response, int geoStatusCode)
-            {
-                // Fingerprint succeeded but geo failed — still call onSuccess with the fingerprint,
-                // but log the geo failure
-                var callback = _onSuccess;
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                {
-                    Debug.LogWarning(
-                        $"[SeonSDK] Geolocation collection failed (status={geoStatusCode}) " +
-                        "but fingerprint was generated successfully.");
-                    callback?.Invoke(response);
+            void onCompleteWithGeoFailure(string response, int geoStatusCode) {
+                var errorCallback = _onError;
+                SeonMainThreadDispatcher.Instance.Enqueue(() => {
+                    errorCallback?.Invoke(new SeonError {
+                        Code = -1,
+                        Message = response,
+                        GeolocationStatusCode = geoStatusCode
+                    });
                 });
             }
         }
 
 #else
         // Stubs for non-Android platforms
-        public void Init(string sessionId) => throw new PlatformNotSupportedException();
-        public void SetSessionId(string sessionId) => throw new PlatformNotSupportedException();
-        public void SetLoggingEnabled(bool enabled) => throw new PlatformNotSupportedException();
-        public void SetDnsTimeout(int timeoutMs) => throw new PlatformNotSupportedException();
-        public void SetGeolocationConfig(SeonGeolocationConfig config) => throw new PlatformNotSupportedException();
-        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) => throw new PlatformNotSupportedException();
-        public void StartBehaviourMonitoring() => throw new PlatformNotSupportedException();
-        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) => throw new PlatformNotSupportedException();
-        public void Cleanup() { }
+        public void SetSessionId(string sessionId) { throw new PlatformNotSupportedException(); }
+        public void SetLoggingEnabled(bool enabled) { throw new PlatformNotSupportedException(); }
+        public void SetDnsTimeout(int timeoutMs) { throw new PlatformNotSupportedException(); }
+        public void SetGeolocationConfig(SeonGeolocationConfig config) { throw new PlatformNotSupportedException(); }
+        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) { throw new PlatformNotSupportedException(); }
+        public void StartBehaviourMonitoring() { throw new PlatformNotSupportedException(); }
+        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) { throw new PlatformNotSupportedException(); }
 #endif
     }
 }

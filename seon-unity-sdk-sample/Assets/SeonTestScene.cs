@@ -7,7 +7,6 @@ using UnityEngine.UI;
 /// <summary>
 /// SEON SDK test scene controller.
 /// All UI elements are assigned via the Inspector — no runtime construction.
-/// Use Window → SEON → Create Test Scene UI to auto-build the hierarchy.
 /// </summary>
 public class SeonTestScene : MonoBehaviour
 {
@@ -16,21 +15,12 @@ public class SeonTestScene : MonoBehaviour
     [SerializeField] private TMP_Text titleText;
     [SerializeField] private TMP_Text statusText;
 
-    [Header("Buttons — Row 1")]
-    [SerializeField] private Button initButton;
-
-    [Header("Buttons — Row 2")]
+    [Header("Buttons")]
     [SerializeField] private Button getFingerprintButton;
-
-    [Header("Buttons — Row 3")]
     [SerializeField] private Button startMonitorButton;
     [SerializeField] private Button stopMonitorButton;
-
-    [Header("Buttons — Row 4")]
     [SerializeField] private Button toggleLoggingButton;
     [SerializeField] private Button toggleGeoButton;
-
-    [Header("Buttons — Row 5")]
     [SerializeField] private Button copyButton;
     [SerializeField] private Button clearLogButton;
 
@@ -49,7 +39,6 @@ public class SeonTestScene : MonoBehaviour
     [SerializeField] private Color textDimColor  = new Color(0.60f, 0.60f, 0.65f);
 
     // ── State ───────────────────────────────────────────────────
-    private bool _initialized;
     private bool _monitoringActive;
     private bool _loggingEnabled;
     private bool _geoEnabled;
@@ -59,7 +48,6 @@ public class SeonTestScene : MonoBehaviour
     void Start()
     {
         // Wire up button listeners
-        if (initButton)          initButton.onClick.AddListener(OnInit);
         if (getFingerprintButton) getFingerprintButton.onClick.AddListener(OnGetFingerprint);
         if (startMonitorButton)  startMonitorButton.onClick.AddListener(OnStartMonitoring);
         if (stopMonitorButton)   stopMonitorButton.onClick.AddListener(OnStopMonitoring);
@@ -68,31 +56,18 @@ public class SeonTestScene : MonoBehaviour
         if (copyButton)          copyButton.onClick.AddListener(OnCopy);
         if (clearLogButton)      clearLogButton.onClick.AddListener(() => { if (outputText) outputText.text = ""; });
 
+        // Generate a session ID and set it
+        _sessionId = "test-" + Guid.NewGuid().ToString("N").Substring(0, 12);
+        SeonSDK.SetSessionId(_sessionId);
+
         UpdateButtonStates();
-        Log("SEON SDK Test Scene ready.\nPress <b>Init</b> to start.", textDimColor);
+        Log($"SEON SDK Test Scene ready.\nSession: <color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{_sessionId}</color>", textDimColor);
+        SetStatus($"Session: {_sessionId}");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SDK Actions
     // ═══════════════════════════════════════════════════════════
-
-    private void OnInit()
-    {
-        _sessionId = "test-" + Guid.NewGuid().ToString("N").Substring(0, 12);
-        try
-        {
-            SeonSDK.Init(_sessionId);
-            _initialized = true;
-            Log($"✅ <b>Init</b> OK\n   Session: <color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{_sessionId}</color>", successColor);
-            SetStatus($"Initialized — {_sessionId}");
-        }
-        catch (Exception ex)
-        {
-            Log($"❌ <b>Init</b> failed: {ex.Message}", errorColor);
-            SetStatus("Init failed");
-        }
-        UpdateButtonStates();
-    }
 
     private void OnGetFingerprint()
     {
@@ -241,12 +216,8 @@ public class SeonTestScene : MonoBehaviour
 
     private void UpdateButtonStates()
     {
-        SetButtonInteractable(initButton, !_initialized);
-        SetButtonInteractable(getFingerprintButton, _initialized);
-        SetButtonInteractable(startMonitorButton, _initialized && !_monitoringActive);
-        SetButtonInteractable(stopMonitorButton, _initialized && _monitoringActive);
-        SetButtonInteractable(toggleLoggingButton, _initialized);
-        SetButtonInteractable(toggleGeoButton, _initialized);
+        SetButtonInteractable(startMonitorButton, !_monitoringActive);
+        SetButtonInteractable(stopMonitorButton, _monitoringActive);
 
         SetButtonLabel(toggleLoggingButton, _loggingEnabled ? "Logging: ON" : "Logging: OFF");
         SetButtonLabel(toggleGeoButton, _geoEnabled ? "Geo: ON" : "Geo: OFF");

@@ -10,37 +10,17 @@
 // Callback typedefs matching the C# delegates
 typedef void (*FingerprintSuccessCallback)(const char *fingerprint);
 typedef void (*FingerprintErrorCallback)(int code, const char *message);
-
-// Helper: convert NSString to a heap-allocated C string that C# can read.
-// Unity will handle freeing the memory.
-static char *MakeStringCopy(NSString *str) {
-  if (str == nil) {
-    return NULL;
-  }
-  const char *utf8 = [str UTF8String];
-  if (utf8 == NULL) {
-    return NULL;
-  }
-  char *copy = (char *)malloc(strlen(utf8) + 1);
-  strcpy(copy, utf8);
-  return copy;
-}
+typedef void (*GeoFailureCallback)(int code, const char *message,
+                                   const char *fingerprint);
 
 extern "C" {
 
-// ── Initialization ──────────────────────────────────────────
-
-void _SeonInit(const char *sessionId) {
-  NSString *sid = [NSString stringWithUTF8String:sessionId];
-  [[SEONFingerprint sharedManager] setSessionId:sid];
-}
+// Config
 
 void _SeonSetSessionId(const char *sessionId) {
   NSString *sid = [NSString stringWithUTF8String:sessionId];
   [[SEONFingerprint sharedManager] setSessionId:sid];
 }
-
-// ── Configuration ───────────────────────────────────────────
 
 void _SeonSetLoggingEnabled(bool enabled) {
   [[SEONFingerprint sharedManager] setLoggingEnabled:enabled];
@@ -48,27 +28,36 @@ void _SeonSetLoggingEnabled(bool enabled) {
 
 void _SeonSetGeolocationConfig(bool enabled, bool prefetchEnabled,
                                int maxCacheAgeSec, int serviceTimeoutMs) {
-  SEONGeolocationConfig *config = [[SEONGeolocationConfig alloc] init];
-  config.geolocationEnabled = enabled;
-  config.prefetchEnabled = prefetchEnabled;
-  config.maxGeoLocationCacheAgeSec = maxCacheAgeSec;
-  config.geolocationServiceTimeoutMs = serviceTimeoutMs;
-  [[SEONFingerprint sharedManager] setGeolocationConfig:config];
+  SEONGeolocationConfig *geoConfig = [[SEONGeolocationConfig alloc] init];
+  geoConfig.geolocationEnabled = enabled;
+  geoConfig.prefetchEnabled = prefetchEnabled;
+  geoConfig.maxGeoLocationCacheAgeSec = maxCacheAgeSec;
+  geoConfig.geolocationServiceTimeoutMs = serviceTimeoutMs;
+  [[SEONFingerprint sharedManager] setGeolocationConfig:geoConfig];
 }
 
-// ── Fingerprinting ──────────────────────────────────────────
+// Fingerprinting
 
 void _SeonGetFingerprint(FingerprintSuccessCallback onSuccess,
-                         FingerprintErrorCallback onError) {
+                         FingerprintErrorCallback onError,
+                         GeoFailureCallback onGeoFailure) {
   [[SEONFingerprint sharedManager] getFingerprintBase64:^(NSString *fingerprint,
                                                           NSError *error) {
-    if (error != nil) {
+    if (error != nil && fingerprint != nil) {
+      // Geo failure: fingerprint succeeded but geolocation failed
+      if (onGeoFailure) {
+        onGeoFailure((int)error.code, [error.localizedDescription UTF8String],
+                     [fingerprint UTF8String]);
+      }
+    } else if (error != nil) {
+      // Real error: no fingerprint
       if (onError) {
-        onError((int)error.code, MakeStringCopy(error.localizedDescription));
+        onError((int)error.code, [error.localizedDescription UTF8String]);
       }
     } else {
+      // Full success
       if (onSuccess) {
-        onSuccess(MakeStringCopy(fingerprint));
+        onSuccess([fingerprint UTF8String]);
       }
     }
   }];
@@ -83,26 +72,25 @@ int _SeonStartBehaviourMonitoring() {
 }
 
 void _SeonStopBehaviourMonitoring(FingerprintSuccessCallback onSuccess,
-                                  FingerprintErrorCallback onError) {
+                                  FingerprintErrorCallback onError,
+                                  GeoFailureCallback onGeoFailure) {
   [[SEONFingerprint sharedManager] stopBehaviourMonitoring:^(
                                        NSString *fingerprint, NSError *error) {
-    if (error != nil) {
+    if (error != nil && fingerprint != nil) {
+      if (onGeoFailure) {
+        onGeoFailure((int)error.code, [error.localizedDescription UTF8String],
+                     [fingerprint UTF8String]);
+      }
+    } else if (error != nil) {
       if (onError) {
-        onError((int)error.code, MakeStringCopy(error.localizedDescription));
+        onError((int)error.code, [error.localizedDescription UTF8String]);
       }
     } else {
       if (onSuccess) {
-        onSuccess(MakeStringCopy(fingerprint));
+        onSuccess([fingerprint UTF8String]);
       }
     }
   }];
-}
-
-// ── Cleanup ─────────────────────────────────────────────────
-
-void _SeonCleanup() {
-  // SEONFingerprint is a singleton; reset session ID
-  [[SEONFingerprint sharedManager] setSessionId:@""];
 }
 
 } // extern "C"

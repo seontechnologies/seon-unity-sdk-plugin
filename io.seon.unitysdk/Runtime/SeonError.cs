@@ -30,10 +30,11 @@ namespace Seon
 
         public override string ToString()
         {
-            var geo = GeolocationStatusCode.HasValue
-                ? $", GeoStatus={GeolocationStatusCode.Value}"
-                : "";
-            return $"SeonError(Code={Code}, Message=\"{Message}\"{geo})";
+            string geo = "";
+            if (GeolocationStatusCode.HasValue) {
+                geo = ", GeoStatus=" + GeolocationStatusCode.Value;
+            }
+            return "SeonError(Code=" + Code + ", Message=\"" + Message + "\"" + geo + ")";
         }
     }
 
@@ -43,19 +44,42 @@ namespace Seon
     /// </summary>
     public class SeonException : Exception
     {
+        private readonly SeonError _error;
+
         /// <summary>
         /// The underlying SEON error.
         /// </summary>
-        public SeonError Error { get; }
-
-        public SeonException(SeonError error) : base(error?.Message ?? "Unknown SEON error")
+        public SeonError Error
         {
-            Error = error ?? new SeonError { Code = -1, Message = "Unknown SEON error" };
+            get { return _error; }
+        }
+
+        public SeonException(SeonError error) : base(GetErrorMessage(error))
+        {
+            if (error != null) {
+                _error = error;
+            } else {
+                SeonError fallback = new SeonError();
+                fallback.Code = -1;
+                fallback.Message = "Unknown SEON error";
+                _error = fallback;
+            }
         }
 
         public SeonException(string message) : base(message)
         {
-            Error = new SeonError { Code = -1, Message = message };
+            SeonError error = new SeonError();
+            error.Code = -1;
+            error.Message = message;
+            _error = error;
+        }
+
+        private static string GetErrorMessage(SeonError error)
+        {
+            if (error != null) {
+                return error.Message;
+            }
+            return "Unknown SEON error";
         }
     }
 }
