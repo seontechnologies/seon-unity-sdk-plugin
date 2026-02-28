@@ -1,12 +1,10 @@
-namespace Seon
-{
+namespace Seon {
     /// <summary>
     /// Configuration for geolocation data collection.
     /// Pass an instance to <see cref="SeonSDK.SetGeolocationConfig"/> before calling
     /// <see cref="SeonSDK.GetFingerprint"/> or <see cref="SeonSDK.StopBehaviourMonitoring"/>.
     /// </summary>
-    public class SeonGeolocationConfig
-    {
+    public class SeonGeolocationConfig {
         /// <summary>
         /// Enable or disable geolocation collection. Default: <c>false</c>.
         /// </summary>
@@ -32,13 +30,12 @@ namespace Seon
         /// Default: <c>600</c>.
         /// </summary>
         private int _maxCacheAgeSec = 600;
-        public int MaxCacheAgeSec
-        {
-            get { return _maxCacheAgeSec; }
-            set
-            {
-                if (value < 0)
-                {
+        public int MaxCacheAgeSec {
+            get {
+                return _maxCacheAgeSec;
+            }
+            set {
+                if (value < 0) {
                     throw new System.ArgumentOutOfRangeException(nameof(MaxCacheAgeSec), "MaxCacheAgeSec must not be negative.");
                 }
                 _maxCacheAgeSec = value;
@@ -50,13 +47,12 @@ namespace Seon
         /// Default: <c>3000</c>.
         /// </summary>
         private int _serviceTimeoutMs = 3000;
-        public int ServiceTimeoutMs
-        {
-            get { return _serviceTimeoutMs; }
-            set
-            {
-                if (value < 0)
-                {
+        public int ServiceTimeoutMs {
+            get {
+                return _serviceTimeoutMs;
+            }
+            set {
+                if (value < 0) {
                     throw new System.ArgumentOutOfRangeException(nameof(ServiceTimeoutMs), "ServiceTimeoutMs must not be negative.");
                 }
                 _serviceTimeoutMs = value;

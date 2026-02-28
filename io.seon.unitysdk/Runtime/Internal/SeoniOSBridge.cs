@@ -5,13 +5,11 @@ using AOT;
 
 namespace Seon {
     /// <summary>
-    /// iOS platform bridge using DllImport to call extern "C" functions
-    /// defined in SeonUnityBridge.mm, which wraps SEONFingerprint.
+    /// iOS platform bridge to call extern "C" functions
+    /// defined in SeonUnityBridge.mm
     /// </summary>
     internal class SeoniOSBridge : ISeonPlatform {
 #if UNITY_IOS
-
-        // ── Native function declarations ────────────────────────────────
 
         [DllImport("__Internal")]
         private static extern void _SeonSetSessionId(string sessionId);
@@ -46,14 +44,14 @@ namespace Seon {
             FingerprintErrorCallback onError,
             GeoFailureCallback onGeoFailure);
 
-        // ── Stored callbacks (prevent GC collection) ────────────────────
+        // callbacks
 
         private static Action<string> _currentSuccessCallback;
         private static Action<SeonError> _currentErrorCallback;
         private static Action<string> _currentBehaviourSuccessCallback;
         private static Action<SeonError> _currentBehaviourErrorCallback;
 
-        // ── MonoPInvokeCallback handlers ────────────────────────────────
+        // callback handlers must be static and decorated with MonoPInvokeCallback to be callable from native code
 
         [MonoPInvokeCallback(typeof(FingerprintSuccessCallback))]
         private static void OnFingerprintSuccess(string fingerprint){
@@ -136,9 +134,7 @@ namespace Seon {
                 SeonMainThreadDispatcher.Instance.Enqueue(() => callback(error));
             }
         }
-
-        // ── ISeonPlatform implementation ────────────────────────────────
-
+        // interface implementations
         public void SetSessionId(string sessionId)
         {
             _SeonSetSessionId(sessionId);
@@ -151,7 +147,7 @@ namespace Seon {
 
         public void SetDnsTimeout(int timeoutMs)
         {
-            // DNS timeout is Android-only; no-op on iOS
+            // DNS timeout is Android-only, no-op
         }
 
         public void SetGeolocationConfig(SeonGeolocationConfig config)
@@ -215,7 +211,7 @@ namespace Seon {
         }
 
 #else
-        // Stubs for non-iOS platforms (should never be reached due to compile-time selection)
+        // Stubs, should never be reached due to runtime platform check
         public void SetSessionId(string sessionId) {
             throw new PlatformNotSupportedException();
         }

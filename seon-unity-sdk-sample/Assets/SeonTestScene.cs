@@ -30,13 +30,13 @@ public class SeonTestScene : MonoBehaviour
 
     // ── Colors (editable in inspector) ──────────────────────────
     [Header("Theme Colors")]
-    [SerializeField] private Color accentColor   = new Color(0.30f, 0.65f, 1.0f);
-    [SerializeField] private Color successColor  = new Color(0.30f, 0.85f, 0.55f);
-    [SerializeField] private Color errorColor    = new Color(1.0f, 0.40f, 0.40f);
-    [SerializeField] private Color warningColor  = new Color(1.0f, 0.75f, 0.30f);
+    [SerializeField] private Color accentColor = new Color(0.30f, 0.65f, 1.0f);
+    [SerializeField] private Color successColor = new Color(0.30f, 0.85f, 0.55f);
+    [SerializeField] private Color errorColor = new Color(1.0f, 0.40f, 0.40f);
+    [SerializeField] private Color warningColor = new Color(1.0f, 0.75f, 0.30f);
     [SerializeField] private Color disabledColor = new Color(0.35f, 0.35f, 0.40f);
-    [SerializeField] private Color textColor     = new Color(0.93f, 0.93f, 0.95f);
-    [SerializeField] private Color textDimColor  = new Color(0.60f, 0.60f, 0.65f);
+    [SerializeField] private Color textColor = new Color(0.93f, 0.93f, 0.95f);
+    [SerializeField] private Color textDimColor = new Color(0.60f, 0.60f, 0.65f);
 
     // ── State ───────────────────────────────────────────────────
     private bool _monitoringActive;
@@ -49,12 +49,12 @@ public class SeonTestScene : MonoBehaviour
     {
         // Wire up button listeners
         if (getFingerprintButton) getFingerprintButton.onClick.AddListener(OnGetFingerprint);
-        if (startMonitorButton)  startMonitorButton.onClick.AddListener(OnStartMonitoring);
-        if (stopMonitorButton)   stopMonitorButton.onClick.AddListener(OnStopMonitoring);
+        if (startMonitorButton) startMonitorButton.onClick.AddListener(OnStartMonitoring);
+        if (stopMonitorButton) stopMonitorButton.onClick.AddListener(OnStopMonitoring);
         if (toggleLoggingButton) toggleLoggingButton.onClick.AddListener(OnToggleLogging);
-        if (toggleGeoButton)     toggleGeoButton.onClick.AddListener(OnToggleGeo);
-        if (copyButton)          copyButton.onClick.AddListener(OnCopy);
-        if (clearLogButton)      clearLogButton.onClick.AddListener(() => { if (outputText) outputText.text = ""; });
+        if (toggleGeoButton) toggleGeoButton.onClick.AddListener(OnToggleGeo);
+        if (copyButton) copyButton.onClick.AddListener(OnCopy);
+        if (clearLogButton) clearLogButton.onClick.AddListener(() => { if (outputText) outputText.text = ""; });
 
         // Generate a session ID and set it
         _sessionId = "test-" + Guid.NewGuid().ToString("N").Substring(0, 12);

@@ -1,21 +1,23 @@
 using System;
 
-namespace Seon
-{
+namespace Seon {
     /// <summary>
     /// Represents an error returned by the SEON SDK.
     /// </summary>
-    public class SeonError
-    {
+    public class SeonError {
         /// <summary>
         /// Platform-specific error code.
         /// </summary>
-        public int Code { get; set; }
+        public int Code {
+            get; set;
+        }
 
         /// <summary>
         /// Human-readable error description.
         /// </summary>
-        public string Message { get; set; }
+        public string Message {
+            get; set;
+        }
 
         /// <summary>
         /// Non-null when geolocation collection failed but the fingerprint
@@ -26,10 +28,11 @@ namespace Seon
         /// iOS codes: 1008-1013 (see SEON iOS SDK docs).
         /// Android codes: -1 to 6 (see SEON Android SDK docs).
         /// </remarks>
-        public int? GeolocationStatusCode { get; set; }
+        public int? GeolocationStatusCode {
+            get; set;
+        }
 
-        public override string ToString()
-        {
+        public override string ToString() {
             string geo = "";
             if (GeolocationStatusCode.HasValue) {
                 geo = ", GeoStatus=" + GeolocationStatusCode.Value;
@@ -42,23 +45,23 @@ namespace Seon
     /// Exception thrown by the SEON SDK for synchronous errors
     /// (e.g., calling StopBehaviourMonitoring without StartBehaviourMonitoring).
     /// </summary>
-    public class SeonException : Exception
-    {
+    public class SeonException : Exception {
         private readonly SeonError _error;
 
         /// <summary>
         /// The underlying SEON error.
         /// </summary>
-        public SeonError Error
-        {
-            get { return _error; }
+        public SeonError Error {
+            get {
+                return _error;
+            }
         }
 
-        public SeonException(SeonError error) : base(GetErrorMessage(error))
-        {
+        public SeonException(SeonError error) : base(GetErrorMessage(error)) {
             if (error != null) {
                 _error = error;
-            } else {
+            }
+            else {
                 SeonError fallback = new SeonError();
                 fallback.Code = -1;
                 fallback.Message = "Unknown SEON error";
@@ -66,16 +69,14 @@ namespace Seon
             }
         }
 
-        public SeonException(string message) : base(message)
-        {
+        public SeonException(string message) : base(message) {
             SeonError error = new SeonError();
             error.Code = -1;
             error.Message = message;
             _error = error;
         }
 
-        private static string GetErrorMessage(SeonError error)
-        {
+        private static string GetErrorMessage(SeonError error) {
             if (error != null) {
                 return error.Message;
             }

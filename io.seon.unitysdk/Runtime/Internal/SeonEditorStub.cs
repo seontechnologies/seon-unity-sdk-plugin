@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Seon {
     /// <summary>
-    /// Editor stub implementation for in-editor testing.
+    /// Editor stub for in-editor testing
     /// Returns deterministic mock fingerprints so integrators can test
     /// their flow without deploying to a device.
     /// </summary>
@@ -67,8 +67,9 @@ namespace Seon {
         }
 
         private void Log(string message) {
-            if (_loggingEnabled)
+            if (_loggingEnabled) {
                 Debug.Log(message);
+            }
         }
     }
 }

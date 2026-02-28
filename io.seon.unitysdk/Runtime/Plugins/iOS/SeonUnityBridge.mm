@@ -1,10 +1,8 @@
 #import <SeonSDK/SEONFingerprint.h>
 
 // ──────────────────────────────────────────────────────────────
-// SeonUnityBridge.mm
-// Objective-C++ bridge between Unity C# (via DllImport) and
-// the SEON iOS SDK (SEONFingerprint). All functions are
-// extern "C" to prevent name mangling.
+// Bridge between C# and the SEON iOS SDK
+// Exposes C functions with C linkage that can be called from C# via DllImport.
 // ──────────────────────────────────────────────────────────────
 
 // Callback typedefs matching the C# delegates
@@ -36,8 +34,6 @@ void _SeonSetGeolocationConfig(bool enabled, bool prefetchEnabled,
   [[SEONFingerprint sharedManager] setGeolocationConfig:geoConfig];
 }
 
-// Fingerprinting
-
 void _SeonGetFingerprint(FingerprintSuccessCallback onSuccess,
                          FingerprintErrorCallback onError,
                          GeoFailureCallback onGeoFailure) {
@@ -62,8 +58,6 @@ void _SeonGetFingerprint(FingerprintSuccessCallback onSuccess,
     }
   }];
 }
-
-// ── Behaviour Monitoring ────────────────────────────────────
 
 int _SeonStartBehaviourMonitoring() {
   NSError *error = nil;
@@ -93,4 +87,4 @@ void _SeonStopBehaviourMonitoring(FingerprintSuccessCallback onSuccess,
   }];
 }
 
-} // extern "C"
+}

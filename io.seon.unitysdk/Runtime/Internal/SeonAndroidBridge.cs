@@ -2,21 +2,7 @@ using System;
 using UnityEngine;
 
 namespace Seon {
-    /// <summary>
-    /// Android platform bridge using Unity's AndroidJavaObject JNI wrapper.
-    /// Calls into the SEON Android SDK (io.seon.androidsdk) resolved by EDM4U.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The Seon object is built lazily on first use via <see cref="EnsureSeon"/>.
-    /// Call <see cref="SetSessionId"/> before <see cref="GetFingerprint"/>.
-    /// </para>
-    /// <para>
-    /// The native SDK uses an ExecutorService for async work. Callbacks arrive
-    /// on worker threads and are marshalled to Unity's main thread via
-    /// <see cref="SeonMainThreadDispatcher"/>.
-    /// </para>
-    /// </remarks>
+
     internal class SeonAndroidBridge : ISeonPlatform {
 #if UNITY_ANDROID || UNITY_EDITOR
 
@@ -24,6 +10,7 @@ namespace Seon {
         private string _sessionId;
         private int _dnsTimeoutMs = 3000;
         private bool _behaviourMonitoringActive;
+        private bool _isLoggingEnabled;
 
         private AndroidJavaObject Seon {
             get {
@@ -38,11 +25,8 @@ namespace Seon {
             }
         }
 
-        // ── ISeonPlatform implementation ────────────────────────────────
-
         public void SetSessionId(string sessionId) {
             _sessionId = sessionId;
-            // Seon interface has setSessionId() — no rebuild needed
             if (_seon != null) {
                 _seon.Call("setSessionId", sessionId);
             }
@@ -50,12 +34,12 @@ namespace Seon {
 
         public void SetLoggingEnabled(bool enabled) {
             Seon.Call("setLoggingEnabled", enabled);
+            _isLoggingEnabled = enabled;
         }
 
         public void SetDnsTimeout(int timeoutMs) {
             _dnsTimeoutMs = timeoutMs;
 
-            // SeonImpl has setDnsTimeout() setter — can be changed after build
             if (_seon != null) {
                 _seon.Call("setDnsTimeout", timeoutMs);
             }
@@ -63,8 +47,7 @@ namespace Seon {
 
         public void SetGeolocationConfig(SeonGeolocationConfig config) {
             using (var configBuilder = new AndroidJavaObject("io.seon.androidsdk.dto.SeonGeolocationConfigBuilder")) {
-                // Fluent builder returns 'this' but Unity wraps it in a new
-                // AndroidJavaObject each time — must dispose to avoid JNI leaks.
+                // must dispose to avoid JNI leaks
                 using (configBuilder.Call<AndroidJavaObject>("withPrefetchEnabled", config.PrefetchEnabled)) {
                 }
                 using (configBuilder.Call<AndroidJavaObject>(
@@ -101,10 +84,9 @@ namespace Seon {
                 _behaviourMonitoringActive = true;
             }
             catch (AndroidJavaException ex) {
-                throw new SeonException(new SeonError {
-                    Code = -1,
-                    Message = "Failed to start behaviour monitoring: " + ex.Message
-                });
+                if (_isLoggingEnabled) {
+                    Debug.LogError("Failed to start behaviour monitoring: " + ex.Message);
+                }
             }
         }
 
@@ -133,7 +115,6 @@ namespace Seon {
             }
         }
 
-        // ── Lazy initialization ─────────────────────────────────────────
 
         private AndroidJavaObject BuildSeon() {
             SeonMainThreadDispatcher.EnsureInitialized();
@@ -142,8 +123,7 @@ namespace Seon {
             using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
             using (var context = activity.Call<AndroidJavaObject>("getApplicationContext")) {
                 using (var builder = new AndroidJavaObject("io.seon.androidsdk.service.SeonBuilder")) {
-                    // Fluent builder returns 'this' but Unity wraps it in a new
-                    // AndroidJavaObject each time — must dispose to avoid JNI leaks.
+                    // must dispose to avoid JNI leaks.
                     using (builder.Call<AndroidJavaObject>("withContext", context)) {
                     }
                     using (builder.Call<AndroidJavaObject>("withSessionId", _sessionId)) {
@@ -159,21 +139,6 @@ namespace Seon {
             }
         }
 
-        // ── Android callback proxy ──────────────────────────────────────
-
-        /// <summary>
-        /// AndroidJavaProxy implementing SeonCallbackWithGeo.
-        /// <para>
-        /// SeonCallback is a @FunctionalInterface with a single method:
-        ///   void onComplete(String response)
-        /// SeonCallbackWithGeo extends it with:
-        ///   void onCompleteWithGeoFailure(String response, int geoStatusCode)
-        /// </para>
-        /// <para>
-        /// Errors are NOT delivered via callback — they are thrown as
-        /// SeonException from the SDK method calls (caught as AndroidJavaException).
-        /// </para>
-        /// </summary>
         private class SeonCallbackProxy : AndroidJavaProxy {
             private readonly Action<string> _onSuccess;
             private readonly Action<SeonError> _onError;
@@ -202,7 +167,7 @@ namespace Seon {
         }
 
 #else
-        // Stubs for non-Android platforms
+        // Stubs for other platforms
         public void SetSessionId(string sessionId) { throw new PlatformNotSupportedException(); }
         public void SetLoggingEnabled(bool enabled) { throw new PlatformNotSupportedException(); }
         public void SetDnsTimeout(int timeoutMs) { throw new PlatformNotSupportedException(); }
