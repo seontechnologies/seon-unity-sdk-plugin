@@ -59,15 +59,5 @@
     "com.unity.inputsystem",
     "com.unity.test-framework",
     "io.seon.unitysdk"
-  ],
-  "scopedRegistries": [
-    {
-      "name": "OpenUPM",
-      "url": "https://package.openupm.com",
-      "scopes": [
-        "io.seon",
-        "io.seon.unityplugin"
-      ]
-    }
   ]
 }

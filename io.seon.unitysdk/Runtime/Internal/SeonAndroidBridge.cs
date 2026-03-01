@@ -71,8 +71,8 @@ namespace Seon {
                 }
 
                 using (var geoConfig = configBuilder.Call<AndroidJavaObject>("build")) {
-                    Seon.Call("setGeolocationEnabled", config.Enabled);
                     Seon.Call("setGeoLocationConfig", geoConfig);
+                    Seon.Call("setGeolocationEnabled", config.Enabled);
                 }
             }
         }

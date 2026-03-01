@@ -3,6 +3,7 @@ using Seon;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Android;
 
 /// <summary>
 /// SEON SDK test scene controller.
@@ -48,6 +49,9 @@ public class SeonTestScene : MonoBehaviour {
     private string _fingerprint;
 
     void Start() {
+        RequestLocationPermissions();
+        Application.targetFrameRate = 120;
+
         // Wire up button listeners
         if (getFingerprintButton) {
             getFingerprintButton.onClick.AddListener(OnGetFingerprint);
@@ -66,6 +70,7 @@ public class SeonTestScene : MonoBehaviour {
         }
 
         if (toggleGeoButton) {
+            RequestLocationPermissions();
             toggleGeoButton.onClick.AddListener(OnToggleGeo);
         }
 
@@ -108,7 +113,35 @@ public class SeonTestScene : MonoBehaviour {
         SetStatus($"Session: {_sessionId}");
     }
 
+    private void RequestLocationPermissions() {
+        // HACK: By referencing Input.location outside of any platform-specific #if blocks, 
+        // we force Unity's build analyzer to automatically inject the ACCESS_FINE_LOCATION 
+        // permission into the generated AndroidManifest.xml. 
+        // If it's missing from the manifest, Android silently ignores RequestUserPermission!
+        var _ = Input.location.isEnabledByUser;
 
+#if UNITY_ANDROID
+        if (Permission.HasUserAuthorizedPermission(Permission.FineLocation)) {
+            // The user already authorized location services.
+            return;
+        }
+        
+        Log("Requesting Android Location Permission...", textDimColor);
+        Permission.RequestUserPermission(Permission.FineLocation);
+#elif UNITY_IOS
+        if (Application.hasUserAuthorization(UserAuthorization.Location)) {
+            // The user authorized use of location services.
+            return;
+        }
+        if (Input.location.status == LocationServiceStatus.Stopped) {
+            Log("Requesting iOS Location Permission...", textDimColor);
+            // This triggers the native iOS location permission prompt 
+            // if Location Usage Description is set in Player Settings.
+            Input.location.Start();
+            Input.location.Stop(); // We immediately stop, since we just wanted the prompt
+        }
+#endif
+    }
 
     // ═══════════════════════════════════════════════════════════
     // SDK Actions
