@@ -1,4 +1,5 @@
 using System;
+using System.Text.RegularExpressions;
 using Seon;
 using TMPro;
 using UnityEngine;
@@ -128,11 +129,7 @@ public class SeonTestScene : MonoBehaviour {
         
         Log("Requesting Android Location Permission...", textDimColor);
         Permission.RequestUserPermission(Permission.FineLocation);
-#elif UNITY_IOS
-        if (Application.hasUserAuthorization(UserAuthorization.Location)) {
-            // The user authorized use of location services.
-            return;
-        }
+#elif UNITY_IOS    
         if (Input.location.status == LocationServiceStatus.Stopped) {
             Log("Requesting iOS Location Permission...", textDimColor);
             // This triggers the native iOS location permission prompt 
@@ -307,7 +304,9 @@ public class SeonTestScene : MonoBehaviour {
             }
         }
 
-        Debug.Log($"[SeonSDK-TestScene] {message}");
+        // Strip rich text tags for the native console log
+        string plainMessage = Regex.Replace(message, "<.*?>", string.Empty);
+        Debug.Log($"[SeonSDK-TestScene] {plainMessage}");
     }
 
     private void SetStatus(string text) {

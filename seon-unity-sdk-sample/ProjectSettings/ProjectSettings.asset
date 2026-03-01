@@ -532,7 +532,7 @@ PlayerSettings:
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
   cameraUsageDescription: 
-  locationUsageDescription: 
+  locationUsageDescription: Unity test app
   microphoneUsageDescription: 
   bluetoothUsageDescription: 
   macOSTargetOSVersion: 12.0
