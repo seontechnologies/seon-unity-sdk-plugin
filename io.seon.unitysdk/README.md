@@ -49,21 +49,28 @@ public class FraudCheck : MonoBehaviour
     void Start()
     {
         SeonSDK.SetSessionId("my-session-id");
-        SeonSDK.SetLoggingEnabled(true);
+        // Optional: Set logging enabled for debugging purposes
+        // SeonSDK.SetLoggingEnabled(true);
 
         SeonSDK.GetFingerprint(result =>
         {
             if (!result.IsSuccess)
             {
                 Debug.LogError($"Error [{result.Error.Code}]: {result.Error.Message}");
+                if (result.Error.GeolocationStatusCode.HasValue)
+                {
+                    Debug.LogWarning($"Geo status: {result.Error.GeolocationStatusCode}");
+                }
                 return;
             }
 
             Debug.Log($"Fingerprint: {result.Fingerprint}");
             // Send this as the 'session' property of your Fraud API request
+
+            // Note: Even if IsSuccess is true, Geolocation might have thrown a warning if you have enabled it via SeonGeolocationConfig
             if (result.Error != null)
             {
-                Debug.LogWarning($"Geolocation warning: {result.Error}");
+                Debug.LogWarning($"Geolocation warning [{result.Error.GeolocationStatusCode}]: {result.Error.Message}");
             }
         });
     }
@@ -74,15 +81,16 @@ public class FraudCheck : MonoBehaviour
 
 ### `SeonSDK` (Static Class)
 
-| Method                                                       | Description                                                   |
-| ------------------------------------------------------------ | ------------------------------------------------------------- |
-| `SetSessionId(string sessionId)`                             | Set session identifier. **Required before `GetFingerprint`.** |
-| `SetLoggingEnabled(bool enabled)`                            | Toggle diagnostic logging.                                    |
-| `SetDnsTimeout(int timeoutMs)`                               | DNS timeout in ms. Android only. Pass `0` to skip DNS.        |
-| `SetGeolocationConfig(SeonGeolocationConfig)`                | Configure geolocation. Call before `GetFingerprint`.          |
-| `GetFingerprint(Action<SeonFingerprintResult>)`              | Async fingerprint result (success / failure / partial).       |
-| `StartBehaviourMonitoring()`                                 | Start monitoring sensor data for suspicious activity.          |
-| `StopBehaviourMonitoring(Action<SeonFingerprintResult>)`     | Async behaviour fingerprint result (typed).                   |
+| Method                                                   | Description                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| `SetSessionId(string sessionId)`                         | Set session identifier. **Required before `GetFingerprint`.** |
+| `GetSessionId()`                                         | Retrieve the current global session identifier.               |
+| `SetLoggingEnabled(bool enabled)`                        | Toggle diagnostic logging.                                    |
+| `SetDnsTimeout(int timeoutMs)`                           | DNS resolution timeout in ms. Android only.                   |
+| `SetGeolocationConfig(SeonGeolocationConfig)`            | Configure geolocation. Call before `GetFingerprint`.          |
+| `GetFingerprint(Action<SeonFingerprintResult>)`          | Async fingerprint result (success / failure / partial).       |
+| `StartBehaviourMonitoring()`                             | Start monitoring sensor data. Returns `SeonError` if failed.  |
+| `StopBehaviourMonitoring(Action<SeonFingerprintResult>)` | Async behaviour fingerprint result (typed).                   |
 
 ### `SeonGeolocationConfig`
 
@@ -103,11 +111,11 @@ public class FraudCheck : MonoBehaviour
 
 ### `SeonFingerprintResult`
 
-| Property               | Type        | Description                                                               |
-| ---------------------- | ----------- | ------------------------------------------------------------------------- |
-| `Fingerprint`          | `string`    | Base64 fingerprint. Set for full and partial success.                    |
-| `Error`                | `SeonError` | Contains failure details, or geolocation warning details on partial success. |
-| `IsSuccess`            | `bool`      | True when `Fingerprint` is present.                                       |
+| Property      | Type        | Description                                                                  |
+| ------------- | ----------- | ---------------------------------------------------------------------------- |
+| `Fingerprint` | `string`    | Base64 fingerprint. Set for full and partial success.                        |
+| `Error`       | `SeonError` | Contains failure details, or geolocation warning details on partial success. |
+| `IsSuccess`   | `bool`      | True when `Fingerprint` is present.                                          |
 
 ## Behaviour Monitoring
 
@@ -124,15 +132,16 @@ SeonSDK.StopBehaviourMonitoring(result =>
 {
     if (!result.IsSuccess)
     {
-        // handle error
+        Debug.LogError($"Behaviour error [{result.Error.Code}]: {result.Error.Message}");
         return;
     }
 
     var enrichedFingerprint = result.Fingerprint;
     // includes behaviour signals
+
     if (result.Error != null)
     {
-        // geolocation warning details
+        // geolocation warning details (e.g. user denied permissions mid-session)
     }
 });
 ```
@@ -186,6 +195,9 @@ You can also configure these manually in Xcode.
 
 The SDK returns mock fingerprints in the Unity Editor so you can test your integration flow without deploying to a device.
 
-## License
+## Native SDK Documentation
 
-MIT
+This Unity SDK is a wrapper around the native SEON mobile SDKs. For extensive details on specific error codes, geolocation status codes, and edge cases, please refer to the official SEON native documentation:
+
+- [SEON iOS SDK Documentation](https://docs.seon.io/api-reference/device-fingerprinting/ios-sdk)
+- [SEON Android SDK Documentation](https://docs.seon.io/api-reference/device-fingerprinting/android-sdk)
