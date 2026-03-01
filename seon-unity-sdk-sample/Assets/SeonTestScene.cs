@@ -8,8 +8,7 @@ using UnityEngine.UI;
 /// SEON SDK test scene controller.
 /// All UI elements are assigned via the Inspector — no runtime construction.
 /// </summary>
-public class SeonTestScene : MonoBehaviour
-{
+public class SeonTestScene : MonoBehaviour {
     // ── Inspector References ────────────────────────────────────
     [Header("Status")]
     [SerializeField] private TMP_Text titleText;
@@ -23,6 +22,9 @@ public class SeonTestScene : MonoBehaviour
     [SerializeField] private Button toggleGeoButton;
     [SerializeField] private Button copyButton;
     [SerializeField] private Button clearLogButton;
+    [SerializeField] private Button setSessionIdButton;
+
+    [SerializeField] private TMP_InputField sessionIdInput;
 
     [Header("Output Log")]
     [SerializeField] private TMP_Text outputText;
@@ -45,16 +47,57 @@ public class SeonTestScene : MonoBehaviour
     private string _sessionId;
     private string _fingerprint;
 
-    void Start()
-    {
+    void Start() {
         // Wire up button listeners
-        if (getFingerprintButton) getFingerprintButton.onClick.AddListener(OnGetFingerprint);
-        if (startMonitorButton) startMonitorButton.onClick.AddListener(OnStartMonitoring);
-        if (stopMonitorButton) stopMonitorButton.onClick.AddListener(OnStopMonitoring);
-        if (toggleLoggingButton) toggleLoggingButton.onClick.AddListener(OnToggleLogging);
-        if (toggleGeoButton) toggleGeoButton.onClick.AddListener(OnToggleGeo);
-        if (copyButton) copyButton.onClick.AddListener(OnCopy);
-        if (clearLogButton) clearLogButton.onClick.AddListener(() => { if (outputText) outputText.text = ""; });
+        if (getFingerprintButton) {
+            getFingerprintButton.onClick.AddListener(OnGetFingerprint);
+        }
+
+        if (startMonitorButton) {
+            startMonitorButton.onClick.AddListener(OnStartMonitoring);
+        }
+
+        if (stopMonitorButton) {
+            stopMonitorButton.onClick.AddListener(OnStopMonitoring);
+        }
+
+        if (toggleLoggingButton) {
+            toggleLoggingButton.onClick.AddListener(OnToggleLogging);
+        }
+
+        if (toggleGeoButton) {
+            toggleGeoButton.onClick.AddListener(OnToggleGeo);
+        }
+
+        if (copyButton) {
+            copyButton.onClick.AddListener(OnCopy);
+        }
+
+        if (clearLogButton) {
+            clearLogButton.onClick.AddListener(() => { if (outputText) { outputText.text = ""; } });
+        }
+
+        if (sessionIdInput) {
+            sessionIdInput.onEndEdit.AddListener((value) => {
+                SetSessionID(value.Trim());
+                sessionIdInput.text = _sessionId;
+            });
+        }
+
+        if (setSessionIdButton) {
+            setSessionIdButton.onClick.AddListener(() => {
+                if (sessionIdInput) {
+                    string input = sessionIdInput.text;
+                    if (!string.IsNullOrEmpty(input)) {
+                        SetSessionID(input);
+                        sessionIdInput.text = _sessionId;
+                    }
+                    else {
+                        Log("Session ID input is empty. Please enter a valid session ID.", warningColor);
+                    }
+                }
+            });
+        }
 
         // Generate a session ID and set it
         _sessionId = "test-" + Guid.NewGuid().ToString("N").Substring(0, 12);
@@ -65,99 +108,112 @@ public class SeonTestScene : MonoBehaviour
         SetStatus($"Session: {_sessionId}");
     }
 
+
+
     // ═══════════════════════════════════════════════════════════
     // SDK Actions
     // ═══════════════════════════════════════════════════════════
-
-    private void OnGetFingerprint()
-    {
+    private void SetSessionID(string sessionId) {
+        if (string.IsNullOrWhiteSpace(sessionId)) {
+            Log("Session ID must not be empty. Please enter a valid session ID.", warningColor);
+            return;
+        }
+        SeonSDK.SetSessionId(sessionId);
+        _sessionId = sessionId;
+        Log($"🔑 Session ID set to: <color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{_sessionId}</color>", textDimColor);
+        SetStatus($"Session: {_sessionId}");
+    }
+    private string GetSessionID() {
+        var sessionId = SeonSDK.GetSessionId();
+        Log($"🔑 Current Session ID: <color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{sessionId}</color>", textDimColor);
+        return sessionId;
+    }
+    private void OnGetFingerprint() {
         Log("<b>GetFingerprint</b>...", textDimColor);
         SetStatus("Getting fingerprint...");
         var startTime = Time.realtimeSinceStartup;
 
-        SeonSDK.GetFingerprint(
-            onSuccess: fp =>
-            {
-                var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+        SeonSDK.GetFingerprint(result => {
+            var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+
+            if (result.IsSuccess) {
+                var fp = result.Fingerprint;
                 Log($"✅ <b>Fingerprint</b> ({fp.Length} chars, {elapsed:F0}ms):\n<color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{fp}</color>", successColor);
                 SetStatus($"Fingerprint OK — {fp.Length} chars");
                 _fingerprint = fp;
-                Debug.Log($"<b>Fingerprint</b> ({fp.Length} chars, {elapsed:F0}ms):\n{fp}");
-            },
-            onError: err =>
-            {
-                var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+
+                if (result.Error != null && result.Error.GeolocationStatusCode.HasValue) {
+                    Log($"⚠️ Geolocation warning (status={result.Error.GeolocationStatusCode}): {result.Error.Message}", warningColor);
+                }
+            }
+            else {
+                var err = result.Error;
                 Log($"❌ <b>Fingerprint</b> error [{err.Code}] ({elapsed:F0}ms):\n{err.Message}" +
                     (err.GeolocationStatusCode.HasValue ? $"\n   GeoStatus: {err.GeolocationStatusCode}" : ""),
                     errorColor);
                 SetStatus($"Fingerprint error [{err.Code}]");
-            });
+            }
+        });
     }
 
-    private void OnStartMonitoring()
-    {
-        try
-        {
-            SeonSDK.StartBehaviourMonitoring();
+    private void OnStartMonitoring() {
+        var error = SeonSDK.StartBehaviourMonitoring();
+        if (error != null) {
+            Log($"❌ <b>StartMonitoring</b> failed: [{error.Code}] {error.Message}", errorColor);
+        }
+        else {
             _monitoringActive = true;
             Log("🟢 <b>Behaviour monitoring started</b>\n   Interact with the device, then press Stop.", successColor);
             SetStatus("Monitoring active...");
         }
-        catch (Exception ex)
-        {
-            Log($"❌ <b>StartMonitoring</b> failed: {ex.Message}", errorColor);
-        }
         UpdateButtonStates();
     }
 
-    private void OnStopMonitoring()
-    {
+    private void OnStopMonitoring() {
         Log("⏳ <b>StopBehaviourMonitoring</b>...", textDimColor);
         var startTime = Time.realtimeSinceStartup;
 
-        SeonSDK.StopBehaviourMonitoring(
-            onSuccess: fp =>
-            {
+        SeonSDK.StopBehaviourMonitoring(result => {
+            var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+
+            if (result.IsSuccess) {
                 _monitoringActive = false;
-                var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+                var fp = result.Fingerprint;
                 Log($"✅ <b>Behaviour fingerprint</b> ({fp.Length} chars, {elapsed:F0}ms):\n<color=#{ColorUtility.ToHtmlStringRGB(accentColor)}>{fp}</color>", successColor);
                 SetStatus($"Behaviour FP OK — {fp.Length} chars");
                 _fingerprint = fp;
-                Debug.Log($"<b>Behaviour fingerprint</b> ({fp.Length} chars, {elapsed:F0}ms):\n{fp}");
-                UpdateButtonStates();
-            },
-            onError: err =>
-            {
+
+                if (result.Error != null && result.Error.GeolocationStatusCode.HasValue) {
+                    Log($"⚠️ Geolocation warning (status={result.Error.GeolocationStatusCode}): {result.Error.Message}", warningColor);
+                }
+            }
+            else {
                 _monitoringActive = false;
-                var elapsed = (Time.realtimeSinceStartup - startTime) * 1000f;
+                var err = result.Error;
                 Log($"❌ <b>Behaviour</b> error [{err.Code}] ({elapsed:F0}ms):\n{err.Message}", errorColor);
                 SetStatus($"Behaviour error [{err.Code}]");
-                UpdateButtonStates();
-            });
+            }
+
+            UpdateButtonStates();
+        });
     }
 
-    private void OnToggleLogging()
-    {
+    private void OnToggleLogging() {
         _loggingEnabled = !_loggingEnabled;
-        try
-        {
+        try {
             SeonSDK.SetLoggingEnabled(_loggingEnabled);
             Log($"📝 <b>Logging</b>: {(_loggingEnabled ? "ON" : "OFF")}", _loggingEnabled ? successColor : warningColor);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             Log($"❌ <b>SetLogging</b> failed: {ex.Message}", errorColor);
         }
         UpdateButtonStates();
     }
 
-    private void OnToggleGeo()
-    {
+    private void OnToggleGeo() {
         _geoEnabled = !_geoEnabled;
-        try
-        {
-            SeonSDK.SetGeolocationConfig(new SeonGeolocationConfig
-            {
+        try {
+            SeonSDK.SetGeolocationConfig(new SeonGeolocationConfig {
                 Enabled = _geoEnabled,
                 PrefetchEnabled = _geoEnabled,
                 MaxCacheAgeSec = 300,
@@ -165,17 +221,15 @@ public class SeonTestScene : MonoBehaviour
             });
             Log($"📍 <b>Geolocation</b>: {(_geoEnabled ? "ON (prefetch, 5s timeout)" : "OFF")}", _geoEnabled ? successColor : warningColor);
         }
-        catch (Exception ex)
-        {
+        catch (Exception ex) {
             Log($"❌ <b>SetGeoConfig</b> failed: {ex.Message}", errorColor);
         }
         UpdateButtonStates();
     }
 
-    private void OnCopy()
-    {
-        if (!string.IsNullOrEmpty(_fingerprint))
-        {
+
+    private void OnCopy() {
+        if (!string.IsNullOrEmpty(_fingerprint)) {
             GUIUtility.systemCopyBuffer = _fingerprint;
             Log("📋 Fingerprint copied to clipboard.", textDimColor);
         }
@@ -185,37 +239,51 @@ public class SeonTestScene : MonoBehaviour
     // Helpers
     // ═══════════════════════════════════════════════════════════
 
-    private void Log(string message, Color color)
-    {
+    private void Log(string message, Color color) {
         string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
         string colorHex = ColorUtility.ToHtmlStringRGB(color);
         string dimHex = ColorUtility.ToHtmlStringRGB(textDimColor);
         string entry = $"<color=#{dimHex}>[{timestamp}]</color> <color=#{colorHex}>{message}</color>";
 
-        if (outputText != null)
-        {
-            if (!string.IsNullOrEmpty(outputText.text))
+        if (outputText != null) {
+            if (!string.IsNullOrEmpty(outputText.text)) {
                 outputText.text += "\n\n" + entry;
-            else
+            }
+            else {
                 outputText.text = entry;
+            }
 
-            // Auto-scroll to bottom
+            // Force TMP to recalculate its mesh, then manually resize
+            // the Content RectTransform to match the text's preferred height.
+            outputText.ForceMeshUpdate();
+            var content = scrollRect.content;
+            if (content != null) {
+                float viewportHeight = scrollRect.viewport != null
+                    ? scrollRect.viewport.rect.height
+                    : scrollRect.GetComponent<RectTransform>().rect.height;
+                float textHeight = outputText.preferredHeight;
+                // Only grow the Content beyond the viewport; never shrink below it
+                content.sizeDelta = new Vector2(
+                    content.sizeDelta.x,
+                    Mathf.Max(textHeight, viewportHeight));
+            }
             Canvas.ForceUpdateCanvases();
-            if (scrollRect != null)
+            // Auto-scroll to bottom only when content overflows
+            if (scrollRect != null && scrollRect.content.rect.height > scrollRect.viewport.rect.height) {
                 scrollRect.verticalNormalizedPosition = 0f;
+            }
         }
 
-        Debug.Log($"[SeonTest] {message}");
+        Debug.Log($"[SeonSDK-TestScene] {message}");
     }
 
-    private void SetStatus(string text)
-    {
-        if (statusText != null)
+    private void SetStatus(string text) {
+        if (statusText != null) {
             statusText.text = text;
+        }
     }
 
-    private void UpdateButtonStates()
-    {
+    private void UpdateButtonStates() {
         SetButtonInteractable(startMonitorButton, !_monitoringActive);
         SetButtonInteractable(stopMonitorButton, _monitoringActive);
 
@@ -223,19 +291,25 @@ public class SeonTestScene : MonoBehaviour
         SetButtonLabel(toggleGeoButton, _geoEnabled ? "Geo: ON" : "Geo: OFF");
     }
 
-    private void SetButtonInteractable(Button btn, bool interactable)
-    {
-        if (btn == null) return;
+    private void SetButtonInteractable(Button btn, bool interactable) {
+        if (btn == null) {
+            return;
+        }
+
         btn.interactable = interactable;
         var colors = btn.colors;
         colors.disabledColor = disabledColor;
         btn.colors = colors;
     }
 
-    private void SetButtonLabel(Button btn, string label)
-    {
-        if (btn == null) return;
+    private void SetButtonLabel(Button btn, string label) {
+        if (btn == null) {
+            return;
+        }
+
         var tmp = btn.GetComponentInChildren<TMP_Text>();
-        if (tmp != null) tmp.text = label;
+        if (tmp != null) {
+            tmp.text = label;
+        }
     }
 }

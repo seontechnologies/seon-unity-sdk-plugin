@@ -6,13 +6,14 @@ namespace Seon {
     /// Each platform (iOS, Android, Editor) implements this to provide
     /// the native SEON SDK functionality.
     /// </summary>
-    public interface ISeonPlatform {
+    internal interface ISeonPlatform {
         void SetSessionId(string sessionId);
+        string GetSessionId();
         void SetLoggingEnabled(bool enabled);
         void SetDnsTimeout(int timeoutMs);
         void SetGeolocationConfig(SeonGeolocationConfig config);
-        void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError);
+        void GetFingerprint(Action<SeonFingerprintResult> onFinished);
         void StartBehaviourMonitoring();
-        void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError);
+        void StopBehaviourMonitoring(Action<SeonFingerprintResult> onFinished);
     }
 }

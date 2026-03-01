@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace Seon {
     /// <summary>
@@ -15,18 +16,30 @@ namespace Seon {
     ///   <item><description>Editor: Mock stub returning dummy data</description></item>
     /// </list>
     /// </para>
+    /// <para>
+    /// All public methods are defensively guarded — invalid arguments are logged
+    /// via <c>Debug.LogError</c> and the call is silently ignored. The SDK will
+    /// never throw an exception that could crash the host application.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
     /// SeonSDK.SetSessionId("my-session-id");
     /// SeonSDK.SetLoggingEnabled(true);
-    /// SeonSDK.GetFingerprint(
-    ///     onSuccess: fp => Debug.Log(fp),
-    ///     onError: err => Debug.LogError(err.Message)
-    /// );
+    /// SeonSDK.GetFingerprint(result =>
+    /// {
+    ///     if (!result.IsSuccess) {
+    ///         Debug.LogError(result.Error.Message);
+    ///         return;
+    ///     }
+    ///
+    ///     Debug.Log(result.Fingerprint);
+    /// });
     /// </code>
     /// </example>
     public static class SeonSDK {
+        private const string Tag = "[SeonSDK]";
+
         private static ISeonPlatform _platform;
         private static string _sessionId;
 
@@ -49,16 +62,32 @@ namespace Seon {
         /// A unique identifier for this session. This value is included in the
         /// generated fingerprint and is used to correlate with Fraud API requests.
         /// </param>
-        /// <exception cref="ArgumentNullException">
-        /// Thrown if <paramref name="sessionId"/> is null or empty.
-        /// </exception>
         public static void SetSessionId(string sessionId) {
             if (string.IsNullOrWhiteSpace(sessionId)) {
-                throw new ArgumentException("Session ID must not be null, empty, or whitespace.", nameof(sessionId));
+                Debug.LogError(Tag + " SetSessionId: sessionId must not be null, empty, or whitespace.");
+                return;
             }
 
             _sessionId = sessionId;
-            _platform.SetSessionId(sessionId);
+            try {
+                _platform.SetSessionId(sessionId);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " SetSessionId failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Get the current session identifier, or <c>null</c> if not yet set.
+        /// </summary>
+        public static string GetSessionId() {
+            try {
+                return _platform.GetSessionId();
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " GetSessionId failed: " + ex.Message);
+                return _sessionId;
+            }
         }
 
         /// <summary>
@@ -66,7 +95,12 @@ namespace Seon {
         /// </summary>
         /// <param name="enabled">True to enable logging, false to disable.</param>
         public static void SetLoggingEnabled(bool enabled) {
-            _platform.SetLoggingEnabled(enabled);
+            try {
+                _platform.SetLoggingEnabled(enabled);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " SetLoggingEnabled failed: " + ex.Message);
+            }
         }
 
         /// <summary>
@@ -80,10 +114,16 @@ namespace Seon {
         /// </param>
         public static void SetDnsTimeout(int timeoutMs) {
             if (timeoutMs < 0) {
-                throw new ArgumentOutOfRangeException(nameof(timeoutMs), "DNS timeout must not be negative.");
+                Debug.LogError(Tag + " SetDnsTimeout: timeoutMs must not be negative.");
+                return;
             }
 
-            _platform.SetDnsTimeout(timeoutMs);
+            try {
+                _platform.SetDnsTimeout(timeoutMs);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " SetDnsTimeout failed: " + ex.Message);
+            }
         }
 
         /// <summary>
@@ -92,41 +132,52 @@ namespace Seon {
         /// <see cref="StopBehaviourMonitoring"/> for location data to be included.
         /// </summary>
         /// <param name="config">Geolocation configuration.</param>
-        /// <exception cref="ArgumentNullException">Thrown if config is null.</exception>
         public static void SetGeolocationConfig(SeonGeolocationConfig config) {
             if (config == null) {
-                throw new ArgumentNullException(nameof(config));
+                Debug.LogError(Tag + " SetGeolocationConfig: config must not be null.");
+                return;
             }
 
-            _platform.SetGeolocationConfig(config);
+            try {
+                _platform.SetGeolocationConfig(config);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " SetGeolocationConfig failed: " + ex.Message);
+            }
         }
 
         /// <summary>
         /// Asynchronously compute the device fingerprint.
         /// </summary>
-        /// <param name="onSuccess">
-        /// Invoked on the Unity main thread with the base64-encoded fingerprint string.
-        /// Use this value as the <c>session</c> property of your SEON Fraud API request.
+        /// <param name="onFinished">
+        /// Invoked on the Unity main thread with a typed result object.
+        /// This callback can represent success, failure, or partial success
+        /// (fingerprint generated but geolocation failed).
         /// </param>
-        /// <param name="onError">
-        /// Invoked on the Unity main thread if fingerprinting fails.
-        /// </param>
-        public static void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) {
-            if (onSuccess == null) {
-                throw new ArgumentNullException(nameof(onSuccess));
-            }
-            if (onError == null) {
-                throw new ArgumentNullException(nameof(onError));
-            }
-            if (string.IsNullOrEmpty(_sessionId)) {
-                onError(new SeonError {
-                    Code = -1,
-                    Message = "Call SeonSDK.SetSessionId() before using GetFingerprint."
-                });
+        public static void GetFingerprint(Action<SeonFingerprintResult> onFinished) {
+            if (onFinished == null) {
+                Debug.LogError(Tag + " GetFingerprint: onFinished callback must not be null.");
                 return;
             }
 
-            _platform.GetFingerprint(onSuccess, onError);
+            if (string.IsNullOrEmpty(_sessionId)) {
+                onFinished(new SeonFingerprintResult(null, new SeonError {
+                    Code = -1,
+                    Message = "Call SeonSDK.SetSessionId() before using GetFingerprint."
+                }));
+                return;
+            }
+
+            try {
+                _platform.GetFingerprint(onFinished);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " GetFingerprint failed: " + ex.Message);
+                onFinished(new SeonFingerprintResult(null, new SeonError {
+                    Code = -1,
+                    Message = "Internal SDK error: " + ex.Message
+                }));
+            }
         }
 
         /// <summary>
@@ -138,44 +189,65 @@ namespace Seon {
         /// to detect automation, device farms, and vishing activity.
         /// The analysis needs at least a few seconds of data collection to be effective.
         /// </remarks>
-        /// <exception cref="SeonException">Thrown if monitoring cannot be started.</exception>
-        public static void StartBehaviourMonitoring() {
+        /// <returns>
+        /// <c>null</c> on success, or a <see cref="SeonError"/> describing the failure.
+        /// </returns>
+        public static SeonError StartBehaviourMonitoring() {
             if (string.IsNullOrEmpty(_sessionId)) {
-                throw new SeonException(new SeonError {
+                var error = new SeonError {
                     Code = -1,
                     Message = "Call SeonSDK.SetSessionId() before using StartBehaviourMonitoring."
-                });
+                };
+                Debug.LogError(Tag + " " + error.Message);
+                return error;
             }
 
-            _platform.StartBehaviourMonitoring();
+            try {
+                _platform.StartBehaviourMonitoring();
+                return null;
+            }
+            catch (Exception ex) {
+                var error = new SeonError {
+                    Code = -1,
+                    Message = "Failed to start behaviour monitoring: " + ex.Message
+                };
+                Debug.LogError(Tag + " " + error.Message);
+                return error;
+            }
         }
 
         /// <summary>
         /// Stop behaviour monitoring and retrieve the enriched fingerprint.
         /// </summary>
-        /// <param name="onSuccess">
-        /// Invoked with the base64 fingerprint string that includes both device
-        /// fingerprint data and behaviour analysis results.
+        /// <param name="onFinished">
+        /// Invoked on the Unity main thread with a typed result object.
+        /// This callback can represent success, failure, or partial success
+        /// (fingerprint generated but geolocation failed).
         /// </param>
-        /// <param name="onError">
-        /// Invoked if stopping monitoring or fingerprint generation fails.
-        /// </param>
-        public static void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) {
-            if (onSuccess == null) {
-                throw new ArgumentNullException(nameof(onSuccess));
-            }
-            if (onError == null) {
-                throw new ArgumentNullException(nameof(onError));
-            }
-            if (string.IsNullOrEmpty(_sessionId)) {
-                onError(new SeonError {
-                    Code = -1,
-                    Message = "Call SeonSDK.SetSessionId() before using StopBehaviourMonitoring."
-                });
+        public static void StopBehaviourMonitoring(Action<SeonFingerprintResult> onFinished) {
+            if (onFinished == null) {
+                Debug.LogError(Tag + " StopBehaviourMonitoring: onFinished callback must not be null.");
                 return;
             }
 
-            _platform.StopBehaviourMonitoring(onSuccess, onError);
+            if (string.IsNullOrEmpty(_sessionId)) {
+                onFinished(new SeonFingerprintResult(null, new SeonError {
+                    Code = -1,
+                    Message = "Call SeonSDK.SetSessionId() before using StopBehaviourMonitoring."
+                }));
+                return;
+            }
+
+            try {
+                _platform.StopBehaviourMonitoring(onFinished);
+            }
+            catch (Exception ex) {
+                Debug.LogError(Tag + " StopBehaviourMonitoring failed: " + ex.Message);
+                onFinished(new SeonFingerprintResult(null, new SeonError {
+                    Code = -1,
+                    Message = "Internal SDK error: " + ex.Message
+                }));
+            }
         }
 
         // ── Internal ───────────────────────────────────────────────────

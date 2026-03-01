@@ -51,17 +51,21 @@ public class FraudCheck : MonoBehaviour
         SeonSDK.SetSessionId("my-session-id");
         SeonSDK.SetLoggingEnabled(true);
 
-        SeonSDK.GetFingerprint(
-            onSuccess: fingerprint =>
+        SeonSDK.GetFingerprint(result =>
+        {
+            if (!result.IsSuccess)
             {
-                Debug.Log($"Fingerprint: {fingerprint}");
-                // Send this as the 'session' property of your Fraud API request
-            },
-            onError: error =>
-            {
-                Debug.LogError($"Error [{error.Code}]: {error.Message}");
+                Debug.LogError($"Error [{result.Error.Code}]: {result.Error.Message}");
+                return;
             }
-        );
+
+            Debug.Log($"Fingerprint: {result.Fingerprint}");
+            // Send this as the 'session' property of your Fraud API request
+            if (result.Error != null)
+            {
+                Debug.LogWarning($"Geolocation warning: {result.Error}");
+            }
+        });
     }
 }
 ```
@@ -76,9 +80,9 @@ public class FraudCheck : MonoBehaviour
 | `SetLoggingEnabled(bool enabled)`                            | Toggle diagnostic logging.                                    |
 | `SetDnsTimeout(int timeoutMs)`                               | DNS timeout in ms. Android only. Pass `0` to skip DNS.        |
 | `SetGeolocationConfig(SeonGeolocationConfig)`                | Configure geolocation. Call before `GetFingerprint`.          |
-| `GetFingerprint(Action<string>, Action<SeonError>)`          | Async device fingerprint (base64 string).                     |
-| `StartBehaviourMonitoring()`                                 | Start monitoring sensor data for suspicious activity.         |
-| `StopBehaviourMonitoring(Action<string>, Action<SeonError>)` | Stop monitoring, returns enriched fingerprint.                |
+| `GetFingerprint(Action<SeonFingerprintResult>)`              | Async fingerprint result (success / failure / partial).       |
+| `StartBehaviourMonitoring()`                                 | Start monitoring sensor data for suspicious activity.          |
+| `StopBehaviourMonitoring(Action<SeonFingerprintResult>)`     | Async behaviour fingerprint result (typed).                   |
 
 ### `SeonGeolocationConfig`
 
@@ -97,6 +101,14 @@ public class FraudCheck : MonoBehaviour
 | `Message`               | `string` | Human-readable description.                       |
 | `GeolocationStatusCode` | `int?`   | Non-null if geo failed but fingerprint succeeded. |
 
+### `SeonFingerprintResult`
+
+| Property               | Type        | Description                                                               |
+| ---------------------- | ----------- | ------------------------------------------------------------------------- |
+| `Fingerprint`          | `string`    | Base64 fingerprint. Set for full and partial success.                    |
+| `Error`                | `SeonError` | Contains failure details, or geolocation warning details on partial success. |
+| `IsSuccess`            | `bool`      | True when `Fingerprint` is present.                                       |
+
 ## Behaviour Monitoring
 
 ```csharp
@@ -108,10 +120,21 @@ SeonSDK.StartBehaviourMonitoring();
 // ... user interacts with the app for a few seconds ...
 
 // Stop and get enriched fingerprint
-SeonSDK.StopBehaviourMonitoring(
-    onSuccess: enrichedFingerprint => { /* includes behaviour signals */ },
-    onError: error => { /* handle error */ }
-);
+SeonSDK.StopBehaviourMonitoring(result =>
+{
+    if (!result.IsSuccess)
+    {
+        // handle error
+        return;
+    }
+
+    var enrichedFingerprint = result.Fingerprint;
+    // includes behaviour signals
+    if (result.Error != null)
+    {
+        // geolocation warning details
+    }
+});
 ```
 
 > **Note:** The behaviour analysis needs at least a few seconds of data collection to be effective. Detections include `possible_automation`, `possible_device_farm`, `possible_vishing`, and `possible_cloud_device`.
@@ -130,10 +153,20 @@ SeonSDK.SetGeolocationConfig(new SeonGeolocationConfig
     ServiceTimeoutMs = 5000
 });
 
-SeonSDK.GetFingerprint(
-    onSuccess: fp => { /* fingerprint enriched with location data */ },
-    onError: err => { /* handle error */ }
-);
+SeonSDK.GetFingerprint(result =>
+{
+    if (!result.IsSuccess)
+    {
+        // handle error
+        return;
+    }
+
+    var fp = result.Fingerprint; // fingerprint enriched with location data
+    if (result.Error != null)
+    {
+        // geolocation warning is available at result.Error.GeolocationStatusCode
+    }
+});
 ```
 
 ## iOS Build Configuration

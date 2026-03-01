@@ -16,8 +16,16 @@ extern "C" {
 // Config
 
 void _SeonSetSessionId(const char *sessionId) {
-  NSString *sid = [NSString stringWithUTF8String:sessionId];
-  [[SEONFingerprint sharedManager] setSessionId:sid];
+  [[SEONFingerprint sharedManager]
+      setSessionId:[NSString stringWithUTF8String:sessionId]];
+}
+
+const char *_SeonGetSessionId() {
+  NSString *sessionId = [[SEONFingerprint sharedManager] sessionId];
+  if (sessionId == nil) {
+    return NULL;
+  }
+  return strdup([sessionId UTF8String]);
 }
 
 void _SeonSetLoggingEnabled(bool enabled) {
@@ -86,5 +94,4 @@ void _SeonStopBehaviourMonitoring(FingerprintSuccessCallback onSuccess,
     }
   }];
 }
-
 }

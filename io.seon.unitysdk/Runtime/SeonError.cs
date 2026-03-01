@@ -42,8 +42,8 @@ namespace Seon {
     }
 
     /// <summary>
-    /// Exception thrown by the SEON SDK for synchronous errors
-    /// (e.g., calling StopBehaviourMonitoring without StartBehaviourMonitoring).
+    /// Optional exception wrapper for <see cref="SeonError"/>.
+    /// Integrators can use this type if they prefer exception-based control flow.
     /// </summary>
     public class SeonException : Exception {
         private readonly SeonError _error;

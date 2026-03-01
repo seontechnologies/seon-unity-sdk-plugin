@@ -17,6 +17,7 @@ namespace Seon.Tests.Editor
         {
             _mockPlatform = new MockPlatform();
             SeonSDK.SetPlatform(_mockPlatform);
+            SeonSDK.SetSessionId("editor-test-session");
         }
 
         // ── SetSessionId ────────────────────────────────────────────
@@ -29,15 +30,21 @@ namespace Seon.Tests.Editor
         }
 
         [Test]
-        public void SetSessionId_WithNullId_ThrowsArgumentNullException()
+        public void SetSessionId_WithNullId_DoesNotThrow()
         {
-            Assert.Throws<ArgumentNullException>(() => SeonSDK.SetSessionId(null));
+            // SDK should log error and not propagate to host app
+            SeonSDK.SetSessionId("valid-session");
+            SeonSDK.SetSessionId(null);
+            // Previous valid session should remain
+            Assert.AreEqual("valid-session", _mockPlatform.LastSessionId);
         }
 
         [Test]
-        public void SetSessionId_WithEmptyId_ThrowsArgumentNullException()
+        public void SetSessionId_WithEmptyId_DoesNotThrow()
         {
-            Assert.Throws<ArgumentNullException>(() => SeonSDK.SetSessionId(""));
+            SeonSDK.SetSessionId("valid-session");
+            SeonSDK.SetSessionId("");
+            Assert.AreEqual("valid-session", _mockPlatform.LastSessionId);
         }
 
         [Test]
@@ -69,9 +76,9 @@ namespace Seon.Tests.Editor
         // ── SetGeolocationConfig ────────────────────────────────────
 
         [Test]
-        public void SetGeolocationConfig_NullConfig_ThrowsArgumentNull()
+        public void SetGeolocationConfig_NullConfig_DoesNotThrow()
         {
-            Assert.Throws<ArgumentNullException>(() => SeonSDK.SetGeolocationConfig(null));
+            Assert.DoesNotThrow(() => SeonSDK.SetGeolocationConfig(null));
         }
 
         [Test]
@@ -95,40 +102,46 @@ namespace Seon.Tests.Editor
         // ── GetFingerprint ──────────────────────────────────────────
 
         [Test]
-        public void GetFingerprint_NullCallbacks_ThrowsArgumentNull()
+        public void GetFingerprint_NullCallback_DoesNotThrow()
         {
-            Assert.Throws<ArgumentNullException>(() =>
-                SeonSDK.GetFingerprint(null, _ => { }));
-            Assert.Throws<ArgumentNullException>(() =>
-                SeonSDK.GetFingerprint(_ => { }, null));
+            Assert.DoesNotThrow(() => SeonSDK.GetFingerprint(null));
         }
 
         [Test]
-        public void GetFingerprint_InvokesSuccessCallback()
+        public void GetFingerprint_ResultCallback_InvokesSuccessResult()
         {
-            string result = null;
-            SeonSDK.GetFingerprint(fp => result = fp, _ => { });
+            SeonFingerprintResult result = null;
+            SeonSDK.GetFingerprint(r => result = r);
+
             Assert.IsNotNull(result);
-            Assert.IsNotEmpty(result);
+            Assert.IsTrue(result.IsSuccess);
+            Assert.IsNotEmpty(result.Fingerprint);
         }
 
         // ── Behaviour Monitoring ────────────────────────────────────
 
         [Test]
-        public void StopBehaviourMonitoring_WithoutStart_InvokesErrorCallback()
+        public void BehaviourMonitoring_StartThenStop_ReturnsSuccessResult()
         {
-            SeonError error = null;
-            SeonSDK.StopBehaviourMonitoring(_ => { }, e => error = e);
-            Assert.IsNotNull(error);
+            var startError = SeonSDK.StartBehaviourMonitoring();
+            Assert.IsNull(startError, "StartBehaviourMonitoring should return null on success.");
+
+            SeonFingerprintResult result = null;
+            SeonSDK.StopBehaviourMonitoring(r => result = r);
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result.IsSuccess);
+            Assert.IsNotEmpty(result.Fingerprint);
         }
 
         [Test]
-        public void BehaviourMonitoring_StartThenStop_ReturnsFingerprint()
+        public void StopBehaviourMonitoring_ResultCallback_WithoutStart_ReturnsFailure()
         {
-            SeonSDK.StartBehaviourMonitoring();
-            string result = null;
-            SeonSDK.StopBehaviourMonitoring(fp => result = fp, _ => { });
+            SeonFingerprintResult result = null;
+            SeonSDK.StopBehaviourMonitoring(r => result = r);
+
             Assert.IsNotNull(result);
+            Assert.IsFalse(result.IsSuccess);
+            Assert.IsNotNull(result.Error);
         }
 
         // ── Geolocation Config Defaults ─────────────────────────────
@@ -175,24 +188,28 @@ namespace Seon.Tests.Editor
             private const string MockBehaviourFp = "bW9jay1iZWhhdmlvdXItZnA=";
 
             public void SetSessionId(string sessionId) => LastSessionId = sessionId;
+            public string GetSessionId() => LastSessionId;
             public void SetLoggingEnabled(bool enabled) => LoggingEnabled = enabled;
             public void SetDnsTimeout(int timeoutMs) => DnsTimeout = timeoutMs;
             public void SetGeolocationConfig(SeonGeolocationConfig config) => GeoConfig = config;
 
-            public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError)
-                => onSuccess(MockFp);
+            public void GetFingerprint(Action<SeonFingerprintResult> onFinished)
+                => onFinished(new SeonFingerprintResult(MockFp));
 
-            public void StartBehaviourMonitoring() => _behaviourActive = true;
+            public void StartBehaviourMonitoring()
+            {
+                _behaviourActive = true;
+            }
 
-            public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError)
+            public void StopBehaviourMonitoring(Action<SeonFingerprintResult> onFinished)
             {
                 if (!_behaviourActive)
                 {
-                    onError(new SeonError { Code = -1, Message = "Not started" });
+                    onFinished(new SeonFingerprintResult(null, new SeonError { Code = -1, Message = "Not started" }));
                     return;
                 }
                 _behaviourActive = false;
-                onSuccess(MockBehaviourFp);
+                onFinished(new SeonFingerprintResult(MockBehaviourFp));
             }
         }
     }

@@ -5,6 +5,14 @@ namespace Seon {
     /// <see cref="SeonSDK.GetFingerprint"/> or <see cref="SeonSDK.StopBehaviourMonitoring"/>.
     /// </summary>
     public class SeonGeolocationConfig {
+        public SeonGeolocationConfig() {
+        }
+        public SeonGeolocationConfig(bool enabled, bool prefetchEnabled, int maxCacheAgeSec, int serviceTimeoutMs) {
+            Enabled = enabled;
+            PrefetchEnabled = prefetchEnabled;
+            MaxCacheAgeSec = maxCacheAgeSec;
+            ServiceTimeoutMs = serviceTimeoutMs;
+        }
         /// <summary>
         /// Enable or disable geolocation collection. Default: <c>false</c>.
         /// </summary>

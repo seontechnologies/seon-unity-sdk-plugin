@@ -1,8 +1,8 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Seon {
-
     internal class SeonAndroidBridge : ISeonPlatform {
 #if UNITY_ANDROID || UNITY_EDITOR
 
@@ -10,7 +10,9 @@ namespace Seon {
         private string _sessionId;
         private int _dnsTimeoutMs = 3000;
         private bool _behaviourMonitoringActive;
-        private bool _isLoggingEnabled;
+
+        private readonly object _callbackLock = new object();
+        private readonly HashSet<SeonCallbackProxy> _activeCallbacks = new HashSet<SeonCallbackProxy>();
 
         private AndroidJavaObject Seon {
             get {
@@ -32,9 +34,20 @@ namespace Seon {
             }
         }
 
+        public string GetSessionId() {
+            if (_seon != null) {
+                return _seon.Call<string>("getSessionId");
+            }
+            return _sessionId;
+        }
+
         public void SetLoggingEnabled(bool enabled) {
-            Seon.Call("setLoggingEnabled", enabled);
-            _isLoggingEnabled = enabled;
+            // Native SDK takes java.lang.Boolean (boxed), not primitive boolean.
+            // Unity marshals C# bool as primitive boolean (JNI signature 'Z'),
+            // so we must box it explicitly.
+            using (var boxedEnabled = new AndroidJavaObject("java.lang.Boolean", enabled)) {
+                Seon.Call("setLoggingEnabled", boxedEnabled);
+            }
         }
 
         public void SetDnsTimeout(int timeoutMs) {
@@ -47,7 +60,7 @@ namespace Seon {
 
         public void SetGeolocationConfig(SeonGeolocationConfig config) {
             using (var configBuilder = new AndroidJavaObject("io.seon.androidsdk.dto.SeonGeolocationConfigBuilder")) {
-                // must dispose to avoid JNI leaks
+                // Fluent builder calls return new wrappers; dispose them to avoid JNI local ref leaks.
                 using (configBuilder.Call<AndroidJavaObject>("withPrefetchEnabled", config.PrefetchEnabled)) {
                 }
                 using (configBuilder.Call<AndroidJavaObject>(
@@ -64,17 +77,27 @@ namespace Seon {
             }
         }
 
-        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) {
+        public void GetFingerprint(Action<SeonFingerprintResult> onFinished) {
+            if (onFinished == null) {
+                throw new ArgumentNullException(nameof(onFinished));
+            }
+
+            SeonCallbackProxy callback = null;
             try {
-                var callback = new SeonCallbackProxy(onSuccess, onError);
+                callback = new SeonCallbackProxy(onFinished, UnregisterCallback);
+                RegisterCallback(callback);
                 Seon.Call("getFingerprintBase64", callback);
             }
             catch (AndroidJavaException ex) {
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError {
-                        Code = -1,
-                        Message = "Android SDK error: " + ex.Message
-                    }));
+                if (callback != null) {
+                    UnregisterCallback(callback);
+                }
+
+                var error = new SeonError {
+                    Code = -1,
+                    Message = "Android SDK error: " + ex.Message
+                };
+                SeonMainThreadDispatcher.Instance.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
             }
         }
 
@@ -84,37 +107,47 @@ namespace Seon {
                 _behaviourMonitoringActive = true;
             }
             catch (AndroidJavaException ex) {
-                if (_isLoggingEnabled) {
-                    Debug.LogError("Failed to start behaviour monitoring: " + ex.Message);
-                }
+                throw new SeonException(new SeonError {
+                    Code = -1,
+                    Message = "Failed to start behaviour monitoring: " + ex.Message
+                });
             }
         }
 
-        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) {
+        public void StopBehaviourMonitoring(Action<SeonFingerprintResult> onFinished) {
+            if (onFinished == null) {
+                throw new ArgumentNullException(nameof(onFinished));
+            }
+
             if (!_behaviourMonitoringActive) {
                 SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError {
+                    onFinished(new SeonFingerprintResult(null, new SeonError {
                         Code = -1,
                         Message = "StartBehaviourMonitoring was not called before StopBehaviourMonitoring."
-                    }));
+                    })));
                 return;
             }
 
+            SeonCallbackProxy callback = null;
             try {
-                var callback = new SeonCallbackProxy(onSuccess, onError);
+                callback = new SeonCallbackProxy(onFinished, UnregisterCallback);
+                RegisterCallback(callback);
                 Seon.Call("stopBehaviourMonitoring", callback);
                 _behaviourMonitoringActive = false;
             }
             catch (AndroidJavaException ex) {
+                if (callback != null) {
+                    UnregisterCallback(callback);
+                }
+
                 _behaviourMonitoringActive = false;
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
-                    onError(new SeonError {
-                        Code = -1,
-                        Message = "Failed to stop behaviour monitoring: " + ex.Message
-                    }));
+                var error = new SeonError {
+                    Code = -1,
+                    Message = "Failed to stop behaviour monitoring: " + ex.Message
+                };
+                SeonMainThreadDispatcher.Instance.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
             }
         }
-
 
         private AndroidJavaObject BuildSeon() {
             SeonMainThreadDispatcher.EnsureInitialized();
@@ -123,7 +156,6 @@ namespace Seon {
             using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
             using (var context = activity.Call<AndroidJavaObject>("getApplicationContext")) {
                 using (var builder = new AndroidJavaObject("io.seon.androidsdk.service.SeonBuilder")) {
-                    // must dispose to avoid JNI leaks.
                     using (builder.Call<AndroidJavaObject>("withContext", context)) {
                     }
                     using (builder.Call<AndroidJavaObject>("withSessionId", _sessionId)) {
@@ -139,42 +171,60 @@ namespace Seon {
             }
         }
 
-        private class SeonCallbackProxy : AndroidJavaProxy {
-            private readonly Action<string> _onSuccess;
-            private readonly Action<SeonError> _onError;
+        private void RegisterCallback(SeonCallbackProxy callback) {
+            lock (_callbackLock) {
+                _activeCallbacks.Add(callback);
+            }
+        }
 
-            public SeonCallbackProxy(Action<string> onSuccess, Action<SeonError> onError)
+        private void UnregisterCallback(SeonCallbackProxy callback) {
+            lock (_callbackLock) {
+                _activeCallbacks.Remove(callback);
+            }
+        }
+
+        private class SeonCallbackProxy : AndroidJavaProxy {
+            private readonly Action<SeonFingerprintResult> _onFinished;
+            private readonly Action<SeonCallbackProxy> _onCompleted;
+
+            public SeonCallbackProxy(
+                Action<SeonFingerprintResult> onFinished,
+                Action<SeonCallbackProxy> onCompleted)
                 : base("io.seon.androidsdk.service.SeonCallbackWithGeo") {
-                _onSuccess = onSuccess;
-                _onError = onError;
+                _onFinished = onFinished;
+                _onCompleted = onCompleted;
+            }
+
+            private void Complete(SeonFingerprintResult result) {
+                _onCompleted?.Invoke(this);
+
+                var callback = _onFinished;
+                SeonMainThreadDispatcher.Instance.Enqueue(() => callback?.Invoke(result));
             }
 
             void onComplete(string response) {
-                var callback = _onSuccess;
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback?.Invoke(response));
+                Complete(new SeonFingerprintResult(response));
             }
 
             void onCompleteWithGeoFailure(string response, int geoStatusCode) {
-                var errorCallback = _onError;
-                SeonMainThreadDispatcher.Instance.Enqueue(() => {
-                    errorCallback?.Invoke(new SeonError {
-                        Code = -1,
-                        Message = response,
-                        GeolocationStatusCode = geoStatusCode
-                    });
-                });
+                var warning = new SeonError {
+                    Code = geoStatusCode,
+                    Message = "Geolocation collection failed, but fingerprint generation succeeded.",
+                    GeolocationStatusCode = geoStatusCode
+                };
+                Complete(new SeonFingerprintResult(response, warning));
             }
         }
 
 #else
-        // Stubs for other platforms
         public void SetSessionId(string sessionId) { throw new PlatformNotSupportedException(); }
+        public string GetSessionId() { throw new PlatformNotSupportedException(); }
         public void SetLoggingEnabled(bool enabled) { throw new PlatformNotSupportedException(); }
         public void SetDnsTimeout(int timeoutMs) { throw new PlatformNotSupportedException(); }
         public void SetGeolocationConfig(SeonGeolocationConfig config) { throw new PlatformNotSupportedException(); }
-        public void GetFingerprint(Action<string> onSuccess, Action<SeonError> onError) { throw new PlatformNotSupportedException(); }
+        public void GetFingerprint(Action<SeonFingerprintResult> onFinished) { throw new PlatformNotSupportedException(); }
         public void StartBehaviourMonitoring() { throw new PlatformNotSupportedException(); }
-        public void StopBehaviourMonitoring(Action<string> onSuccess, Action<SeonError> onError) { throw new PlatformNotSupportedException(); }
+        public void StopBehaviourMonitoring(Action<SeonFingerprintResult> onFinished) { throw new PlatformNotSupportedException(); }
 #endif
     }
 }

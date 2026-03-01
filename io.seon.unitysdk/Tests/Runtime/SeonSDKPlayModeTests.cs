@@ -19,21 +19,14 @@ namespace Seon.Tests.Runtime
             SeonSDK.SetSessionId("playmode-test-" + System.Guid.NewGuid());
             SeonSDK.SetLoggingEnabled(true);
 
-            string fingerprint = null;
-            SeonError error = null;
+            SeonFingerprintResult result = null;
             bool completed = false;
 
-            SeonSDK.GetFingerprint(
-                onSuccess: fp =>
-                {
-                    fingerprint = fp;
-                    completed = true;
-                },
-                onError: err =>
-                {
-                    error = err;
-                    completed = true;
-                });
+            SeonSDK.GetFingerprint(r =>
+            {
+                result = r;
+                completed = true;
+            });
 
             // Wait for callback (timeout after 10 seconds)
             float timeout = 10f;
@@ -44,11 +37,12 @@ namespace Seon.Tests.Runtime
             }
 
             Assert.IsTrue(completed, "GetFingerprint callback was not invoked within timeout.");
-            Assert.IsNull(error, error != null ? $"GetFingerprint failed: [{error.Code}] {error.Message}" : "");
-            Assert.IsNotNull(fingerprint);
-            Assert.IsNotEmpty(fingerprint);
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result.IsSuccess, result.Error != null ? $"GetFingerprint warning/error: [{result.Error.Code}] {result.Error.Message}" : "");
+            Assert.IsNotNull(result.Fingerprint);
+            Assert.IsNotEmpty(result.Fingerprint);
 
-            Debug.Log($"[SeonSDK PlayMode Test] Fingerprint received ({fingerprint.Length} chars)");
+            Debug.Log($"[SeonSDK PlayMode Test] Fingerprint received ({result.Fingerprint.Length} chars)");
         }
 
         [UnityTest]
@@ -57,26 +51,20 @@ namespace Seon.Tests.Runtime
             SeonSDK.SetSessionId("playmode-behaviour-" + System.Guid.NewGuid());
             SeonSDK.SetLoggingEnabled(true);
 
-            SeonSDK.StartBehaviourMonitoring();
+            var startError = SeonSDK.StartBehaviourMonitoring();
+            Assert.IsNull(startError, "StartBehaviourMonitoring should return null on success.");
 
             // Let the SDK collect some sensor data
             yield return new WaitForSeconds(2f);
 
-            string fingerprint = null;
-            SeonError error = null;
+            SeonFingerprintResult result = null;
             bool completed = false;
 
-            SeonSDK.StopBehaviourMonitoring(
-                onSuccess: fp =>
-                {
-                    fingerprint = fp;
-                    completed = true;
-                },
-                onError: err =>
-                {
-                    error = err;
-                    completed = true;
-                });
+            SeonSDK.StopBehaviourMonitoring(r =>
+            {
+                result = r;
+                completed = true;
+            });
 
             float timeout = 10f;
             while (!completed && timeout > 0)
@@ -86,11 +74,12 @@ namespace Seon.Tests.Runtime
             }
 
             Assert.IsTrue(completed, "StopBehaviourMonitoring callback was not invoked within timeout.");
-            Assert.IsNull(error, error != null ? $"StopBehaviourMonitoring failed: [{error.Code}] {error.Message}" : "");
-            Assert.IsNotNull(fingerprint);
-            Assert.IsNotEmpty(fingerprint);
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result.IsSuccess, result.Error != null ? $"StopBehaviourMonitoring warning/error: [{result.Error.Code}] {result.Error.Message}" : "");
+            Assert.IsNotNull(result.Fingerprint);
+            Assert.IsNotEmpty(result.Fingerprint);
 
-            Debug.Log($"[SeonSDK PlayMode Test] Behaviour fingerprint received ({fingerprint.Length} chars)");
+            Debug.Log($"[SeonSDK PlayMode Test] Behaviour fingerprint received ({result.Fingerprint.Length} chars)");
         }
 
         [UnityTest]
@@ -106,21 +95,14 @@ namespace Seon.Tests.Runtime
                 ServiceTimeoutMs = 5000
             });
 
-            string fingerprint = null;
-            SeonError error = null;
+            SeonFingerprintResult result = null;
             bool completed = false;
 
-            SeonSDK.GetFingerprint(
-                onSuccess: fp =>
-                {
-                    fingerprint = fp;
-                    completed = true;
-                },
-                onError: err =>
-                {
-                    error = err;
-                    completed = true;
-                });
+            SeonSDK.GetFingerprint(r =>
+            {
+                result = r;
+                completed = true;
+            });
 
             float timeout = 15f;
             while (!completed && timeout > 0)
@@ -131,10 +113,12 @@ namespace Seon.Tests.Runtime
 
             Assert.IsTrue(completed, "GetFingerprint with geo callback was not invoked within timeout.");
             // Note: geolocation may fail (permissions) but fingerprint should still succeed
-            Assert.IsNotNull(fingerprint);
-            Assert.IsNotEmpty(fingerprint);
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result.IsSuccess);
+            Assert.IsNotNull(result.Fingerprint);
+            Assert.IsNotEmpty(result.Fingerprint);
 
-            Debug.Log($"[SeonSDK PlayMode Test] Geo fingerprint received ({fingerprint.Length} chars)");
+            Debug.Log($"[SeonSDK PlayMode Test] Geo fingerprint received ({result.Fingerprint.Length} chars)");
         }
 
         [UnityTest]
@@ -142,19 +126,14 @@ namespace Seon.Tests.Runtime
         {
             SeonSDK.SetSessionId("playmode-error-" + System.Guid.NewGuid());
 
-            SeonError error = null;
+            SeonFingerprintResult result = null;
             bool completed = false;
 
-            SeonSDK.StopBehaviourMonitoring(
-                onSuccess: _ =>
-                {
-                    completed = true;
-                },
-                onError: err =>
-                {
-                    error = err;
-                    completed = true;
-                });
+            SeonSDK.StopBehaviourMonitoring(r =>
+            {
+                result = r;
+                completed = true;
+            });
 
             float timeout = 5f;
             while (!completed && timeout > 0)
@@ -164,9 +143,11 @@ namespace Seon.Tests.Runtime
             }
 
             Assert.IsTrue(completed, "StopBehaviourMonitoring callback was not invoked.");
-            Assert.IsNotNull(error, "Expected error when StopBehaviourMonitoring called without Start.");
+            Assert.IsNotNull(result, "Expected result object when StopBehaviourMonitoring called without Start.");
+            Assert.IsFalse(result.IsSuccess, "Expected failure when StopBehaviourMonitoring called without Start.");
+            Assert.IsNotNull(result.Error, "Expected non-null error for failure result.");
 
-            Debug.Log($"[SeonSDK PlayMode Test] Expected error received: {error}");
+            Debug.Log($"[SeonSDK PlayMode Test] Expected error received: {result.Error}");
         }
     }
 }
