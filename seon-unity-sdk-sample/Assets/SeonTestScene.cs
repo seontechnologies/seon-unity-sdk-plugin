@@ -8,8 +8,7 @@ using UnityEngine.Android;
 
 /// <summary>
 /// SEON SDK test scene controller.
-/// All UI elements are assigned via the Inspector — no runtime construction.
-/// </summary>
+/// /// </summary>
 public class SeonTestScene : MonoBehaviour {
     // ── Inspector References ────────────────────────────────────
     [Header("Status")]
@@ -115,10 +114,6 @@ public class SeonTestScene : MonoBehaviour {
     }
 
     private void RequestLocationPermissions() {
-        // HACK: By referencing Input.location outside of any platform-specific #if blocks, 
-        // we force Unity's build analyzer to automatically inject the ACCESS_FINE_LOCATION 
-        // permission into the generated AndroidManifest.xml. 
-        // If it's missing from the manifest, Android silently ignores RequestUserPermission!
         var _ = Input.location.isEnabledByUser;
 
 #if UNITY_ANDROID

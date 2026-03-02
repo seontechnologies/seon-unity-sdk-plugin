@@ -174,6 +174,24 @@ namespace Seon.Tests.Editor
             Assert.IsTrue(error.ToString().Contains("GeoStatus=3"));
         }
 
+        // ── Partial Success (Geo Warning) ──────────────────────────
+
+        [Test]
+        public void GetFingerprint_PartialSuccess_IsSuccessWithGeoWarning()
+        {
+            _mockPlatform.SimulateGeoWarning = true;
+            SeonFingerprintResult capturedResult = null;
+
+            SeonSDK.GetFingerprint(result => capturedResult = result);
+
+            Assert.IsNotNull(capturedResult, "Callback was not invoked");
+            Assert.IsTrue(capturedResult.IsSuccess, "Partial success should still be IsSuccess=true");
+            Assert.IsNotNull(capturedResult.Fingerprint, "Fingerprint should be present on partial success");
+            Assert.IsNotNull(capturedResult.Error, "Error should be present on partial success");
+            Assert.IsTrue(capturedResult.Error.GeolocationStatusCode.HasValue,
+                "GeolocationStatusCode should be set on partial success");
+        }
+
         // ── Mock Platform ───────────────────────────────────────────
 
         private class MockPlatform : ISeonPlatform
@@ -182,6 +200,7 @@ namespace Seon.Tests.Editor
             public bool LoggingEnabled;
             public int DnsTimeout;
             public SeonGeolocationConfig GeoConfig;
+            public bool SimulateGeoWarning;
             private bool _behaviourActive;
 
             private const string MockFp = "bW9jay1mcA==";
@@ -194,7 +213,22 @@ namespace Seon.Tests.Editor
             public void SetGeolocationConfig(SeonGeolocationConfig config) => GeoConfig = config;
 
             public void GetFingerprint(Action<SeonFingerprintResult> onFinished)
-                => onFinished(new SeonFingerprintResult(MockFp));
+            {
+                if (SimulateGeoWarning)
+                {
+                    var geoWarning = new SeonError
+                    {
+                        Code = 2,
+                        Message = "Geolocation collection failed.",
+                        GeolocationStatusCode = 2
+                    };
+                    onFinished(new SeonFingerprintResult(MockFp, geoWarning));
+                }
+                else
+                {
+                    onFinished(new SeonFingerprintResult(MockFp));
+                }
+            }
 
             public void StartBehaviourMonitoring()
             {

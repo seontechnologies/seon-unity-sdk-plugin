@@ -1,4 +1,5 @@
 #import <SeonSDK/SEONFingerprint.h>
+#include <stdlib.h>
 
 // ──────────────────────────────────────────────────────────────
 // Bridge between C# and the SEON iOS SDK
@@ -20,13 +21,15 @@ void _SeonSetSessionId(const char *sessionId) {
       setSessionId:[NSString stringWithUTF8String:sessionId]];
 }
 
-const char *_SeonGetSessionId() {
+char *_SeonGetSessionId() {
   NSString *sessionId = [[SEONFingerprint sharedManager] sessionId];
   if (sessionId == nil) {
     return NULL;
   }
   return strdup([sessionId UTF8String]);
 }
+
+void _SeonFreeString(const char *str) { free((void *)str); }
 
 void _SeonSetLoggingEnabled(bool enabled) {
   [[SEONFingerprint sharedManager] setLoggingEnabled:enabled];

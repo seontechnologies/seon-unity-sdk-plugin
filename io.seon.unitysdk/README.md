@@ -123,9 +123,12 @@ public class FraudCheck : MonoBehaviour
 SeonSDK.SetSessionId("session-id");
 
 // Start monitoring at the beginning of a user journey
-SeonSDK.StartBehaviourMonitoring();
-
-// ... user interacts with the app for a few seconds ...
+var startError = SeonSDK.StartBehaviourMonitoring();
+if (startError != null)
+{
+    Debug.LogError($"Start monitoring failed [{startError.Code}]: {startError.Message}");
+    return;
+}
 
 // Stop and get enriched fingerprint
 SeonSDK.StopBehaviourMonitoring(result =>

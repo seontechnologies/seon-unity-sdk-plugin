@@ -13,7 +13,10 @@ namespace Seon {
         private static extern void _SeonSetSessionId(string sessionId);
 
         [DllImport("__Internal")]
-        private static extern string _SeonGetSessionId();
+        private static extern IntPtr _SeonGetSessionId();
+
+        [DllImport("__Internal")]
+        private static extern void _SeonFreeString(IntPtr str);
 
         [DllImport("__Internal")]
         private static extern void _SeonSetLoggingEnabled(bool enabled);
@@ -116,7 +119,13 @@ namespace Seon {
         }
 
         public string GetSessionId() {
-            return _SeonGetSessionId();
+            IntPtr ptr = _SeonGetSessionId();
+            if (ptr == IntPtr.Zero) {
+                return null;
+            }
+            string result = Marshal.PtrToStringAnsi(ptr);
+            _SeonFreeString(ptr);
+            return result;
         }
 
         public void SetLoggingEnabled(bool enabled) {

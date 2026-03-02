@@ -18,8 +18,7 @@ namespace Seon {
     /// </para>
     /// <para>
     /// All public methods are defensively guarded — invalid arguments are logged
-    /// via <c>Debug.LogError</c> and the call is silently ignored. The SDK will
-    /// never throw an exception that could crash the host application.
+    /// via <c>Debug.LogError</c>.
     /// </para>
     /// </remarks>
     /// <example>
@@ -68,12 +67,14 @@ namespace Seon {
                 return;
             }
 
+            var previousSessionId = _sessionId;
             _sessionId = sessionId;
             try {
                 _platform.SetSessionId(sessionId);
             }
             catch (Exception ex) {
-                Debug.LogError(Tag + " SetSessionId failed: " + ex.Message);
+                _sessionId = previousSessionId;
+                Debug.LogError(Tag + " SetSessionId failed (rolled back): " + ex.Message);
             }
         }
 

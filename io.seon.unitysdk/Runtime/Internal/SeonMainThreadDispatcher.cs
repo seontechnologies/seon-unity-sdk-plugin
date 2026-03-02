@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 namespace Seon {
@@ -13,6 +14,7 @@ namespace Seon {
     /// </remarks>
     internal class SeonMainThreadDispatcher : MonoBehaviour {
         private static SeonMainThreadDispatcher _instance;
+        private static int _mainThreadId;
         private readonly Queue<Action> _actionQueue = new Queue<Action>();
 
         /// <summary>
@@ -22,7 +24,10 @@ namespace Seon {
         /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void AutoInit() {
-            EnsureInitialized();
+            _mainThreadId = Thread.CurrentThread.ManagedThreadId;
+            if (_instance == null) {
+                CreateDispatcher();
+            }
         }
 
         internal static SeonMainThreadDispatcher Instance {
@@ -38,14 +43,34 @@ namespace Seon {
         /// async operation that will deliver callbacks on a background thread.
         /// </summary>
         internal static void EnsureInitialized() {
-            if (_instance == null) {
-                Debug.LogWarning("[SeonSDK] Dispatcher was null — recreating. " +
-                    "This should not happen in normal operation.");
-                GameObject go = new GameObject("[SeonMainThreadDispatcher]");
-                go.hideFlags = HideFlags.HideAndDontSave;
-                DontDestroyOnLoad(go);
-                _instance = go.AddComponent<SeonMainThreadDispatcher>();
+            if (_instance != null) {
+                return;
             }
+
+            // Creating Unity objects is only allowed on the main thread.
+            // AutoInit (RuntimeInitializeOnLoadMethod) should have already
+            // created the instance. If we get here from a background thread,
+            // something went very wrong — log and bail rather than crash.
+            if (!IsMainThread()) {
+                Debug.LogError("[SeonSDK] EnsureInitialized called from a background thread " +
+                    "before the dispatcher was created. Callbacks will not be delivered.");
+                return;
+            }
+
+            Debug.LogWarning("[SeonSDK] Dispatcher was null — recreating. " +
+                "This should not happen in normal operation.");
+            CreateDispatcher();
+        }
+
+        private static bool IsMainThread() {
+            return Thread.CurrentThread.ManagedThreadId == _mainThreadId;
+        }
+
+        private static void CreateDispatcher() {
+            GameObject go = new GameObject("[SeonMainThreadDispatcher]");
+            go.hideFlags = HideFlags.HideAndDontSave;
+            DontDestroyOnLoad(go);
+            _instance = go.AddComponent<SeonMainThreadDispatcher>();
         }
 
         /// <summary>
