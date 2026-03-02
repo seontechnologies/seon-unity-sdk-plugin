@@ -19,12 +19,5 @@
   "license": "MIT",
   "dependencies": {
     "com.google.external-dependency-manager": "1.2.187"
-  },
-  "samples": [
-    {
-      "displayName": "Basic Integration",
-      "description": "A simple scene demonstrating SEON SDK initialization and fingerprinting.",
-      "path": "Samples~/BasicIntegration"
-    }
-  ]
+  }
 }
