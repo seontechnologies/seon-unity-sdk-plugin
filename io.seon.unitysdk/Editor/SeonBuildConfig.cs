@@ -13,7 +13,7 @@ namespace Seon.Editor {
         private const string DefaultAssetPath = "Assets/SeonBuildConfig.asset";
 
         [Header("Post-Build Processor")]
-        [Tooltip("Master switch for the iOS post-build processor. When disabled, no Xcode project modifications are made.")]
+        [Tooltip("Enable geolocation-related Xcode modifications (CoreLocation, Info.plist). Framework embedding is always applied.")]
         public bool EnablePostBuildProcessor = true;
 
         [Header("iOS — Geolocation")]

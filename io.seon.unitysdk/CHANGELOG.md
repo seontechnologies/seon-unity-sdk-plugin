@@ -13,8 +13,6 @@ All notable changes to the SEON Unity SDK will be documented in this file.
 - Main thread dispatcher for native callback marshalling
 - EDM4U dependency declarations (CocoaPods for iOS, Gradle/Maven for Android)
 - Opt-in iOS post-build processor (`SeonBuildConfig` ScriptableObject)
-- EditMode unit tests (18 tests)
-- PlayMode integration tests (4 device tests)
 - Sample scene with complete UI integration demo
 - UPM package format + `.unitypackage` distribution
 

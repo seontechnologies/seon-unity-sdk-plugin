@@ -162,10 +162,10 @@ namespace Seon {
             }
 
             if (string.IsNullOrEmpty(_sessionId)) {
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Call SeonSDK.SetSessionId() before using GetFingerprint."
-                }));
+                })));
                 return;
             }
 
@@ -174,10 +174,10 @@ namespace Seon {
             }
             catch (Exception ex) {
                 Debug.LogError(Tag + " GetFingerprint failed: " + ex.Message);
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Internal SDK error: " + ex.Message
-                }));
+                })));
             }
         }
 
@@ -207,6 +207,10 @@ namespace Seon {
                 _platform.StartBehaviourMonitoring();
                 return null;
             }
+            catch (SeonException seonException) {
+                Debug.LogError(Tag + " " + seonException.Error.Message);
+                return seonException.Error;
+            }
             catch (Exception ex) {
                 var error = new SeonError {
                     Code = -1,
@@ -232,10 +236,10 @@ namespace Seon {
             }
 
             if (string.IsNullOrEmpty(_sessionId)) {
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Call SeonSDK.SetSessionId() before using StopBehaviourMonitoring."
-                }));
+                })));
                 return;
             }
 
@@ -244,10 +248,10 @@ namespace Seon {
             }
             catch (Exception ex) {
                 Debug.LogError(Tag + " StopBehaviourMonitoring failed: " + ex.Message);
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Internal SDK error: " + ex.Message
-                }));
+                })));
             }
         }
 

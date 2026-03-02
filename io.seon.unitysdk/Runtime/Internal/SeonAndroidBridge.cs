@@ -97,7 +97,7 @@ namespace Seon {
                     Code = -1,
                     Message = "Android SDK error: " + ex.Message
                 };
-                SeonMainThreadDispatcher.Instance.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
             }
         }
 
@@ -120,7 +120,7 @@ namespace Seon {
             }
 
             if (!_behaviourMonitoringActive) {
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
+                SeonMainThreadDispatcher.Enqueue(() =>
                     onFinished(new SeonFingerprintResult(null, new SeonError {
                         Code = -1,
                         Message = "StartBehaviourMonitoring was not called before StopBehaviourMonitoring."
@@ -145,13 +145,11 @@ namespace Seon {
                     Code = -1,
                     Message = "Failed to stop behaviour monitoring: " + ex.Message
                 };
-                SeonMainThreadDispatcher.Instance.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, error)));
             }
         }
 
         private AndroidJavaObject BuildSeon() {
-            SeonMainThreadDispatcher.EnsureInitialized();
-
             using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
             using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
             using (var context = activity.Call<AndroidJavaObject>("getApplicationContext")) {
@@ -199,7 +197,7 @@ namespace Seon {
                 _onCompleted?.Invoke(this);
 
                 var callback = _onFinished;
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback?.Invoke(result));
+                SeonMainThreadDispatcher.Enqueue(() => callback?.Invoke(result));
             }
 
             void onComplete(string response) {

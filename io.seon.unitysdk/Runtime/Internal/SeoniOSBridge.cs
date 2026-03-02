@@ -56,7 +56,7 @@ namespace Seon {
         private static void OnFingerprintSuccess(string fingerprint) {
             var callback = TakeFingerprintCallback();
             if (callback != null) {
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback(new SeonFingerprintResult(fingerprint)));
+                SeonMainThreadDispatcher.Enqueue(() => callback(new SeonFingerprintResult(fingerprint)));
             }
         }
 
@@ -65,7 +65,7 @@ namespace Seon {
             var callback = TakeFingerprintCallback();
             if (callback != null) {
                 var error = new SeonError { Code = code, Message = message };
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback(new SeonFingerprintResult(null, error)));
+                SeonMainThreadDispatcher.Enqueue(() => callback(new SeonFingerprintResult(null, error)));
             }
         }
 
@@ -78,7 +78,7 @@ namespace Seon {
                     Message = message,
                     GeolocationStatusCode = code
                 };
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
+                SeonMainThreadDispatcher.Enqueue(() =>
                     callback(new SeonFingerprintResult(fingerprint, warning)));
             }
         }
@@ -87,7 +87,7 @@ namespace Seon {
         private static void OnBehaviourSuccess(string fingerprint) {
             var callback = TakeBehaviourCallback();
             if (callback != null) {
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback(new SeonFingerprintResult(fingerprint)));
+                SeonMainThreadDispatcher.Enqueue(() => callback(new SeonFingerprintResult(fingerprint)));
             }
         }
 
@@ -96,7 +96,7 @@ namespace Seon {
             var callback = TakeBehaviourCallback();
             if (callback != null) {
                 var error = new SeonError { Code = code, Message = message };
-                SeonMainThreadDispatcher.Instance.Enqueue(() => callback(new SeonFingerprintResult(null, error)));
+                SeonMainThreadDispatcher.Enqueue(() => callback(new SeonFingerprintResult(null, error)));
             }
         }
 
@@ -109,7 +109,7 @@ namespace Seon {
                     Message = message,
                     GeolocationStatusCode = code
                 };
-                SeonMainThreadDispatcher.Instance.Enqueue(() =>
+                SeonMainThreadDispatcher.Enqueue(() =>
                     callback(new SeonFingerprintResult(fingerprint, warning)));
             }
         }
@@ -123,7 +123,7 @@ namespace Seon {
             if (ptr == IntPtr.Zero) {
                 return null;
             }
-            string result = Marshal.PtrToStringAnsi(ptr);
+            string result = Marshal.PtrToStringUTF8(ptr);
             _SeonFreeString(ptr);
             return result;
         }
@@ -150,23 +150,22 @@ namespace Seon {
             }
 
             if (!TrySetFingerprintCallback(onFinished)) {
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "A fingerprint request is already in progress."
-                }));
+                })));
                 return;
             }
 
-            SeonMainThreadDispatcher.EnsureInitialized();
             try {
                 _SeonGetFingerprint(OnFingerprintSuccess, OnFingerprintError, OnFingerprintGeoFailure);
             }
             catch (Exception ex) {
                 TakeFingerprintCallback();
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Failed to start fingerprint request: " + ex.Message
-                }));
+                })));
             }
         }
 
@@ -186,23 +185,22 @@ namespace Seon {
             }
 
             if (!TrySetBehaviourCallback(onFinished)) {
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "A stop behaviour monitoring request is already in progress."
-                }));
+                })));
                 return;
             }
 
-            SeonMainThreadDispatcher.EnsureInitialized();
             try {
                 _SeonStopBehaviourMonitoring(OnBehaviourSuccess, OnBehaviourError, OnBehaviourGeoFailure);
             }
             catch (Exception ex) {
                 TakeBehaviourCallback();
-                onFinished(new SeonFingerprintResult(null, new SeonError {
+                SeonMainThreadDispatcher.Enqueue(() => onFinished(new SeonFingerprintResult(null, new SeonError {
                     Code = -1,
                     Message = "Failed to stop behaviour monitoring: " + ex.Message
-                }));
+                })));
             }
         }
 

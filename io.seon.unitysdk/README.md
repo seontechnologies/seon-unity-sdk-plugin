@@ -20,7 +20,7 @@ Add the following to your project's `Packages/manifest.json`:
 ```json
 {
   "dependencies": {
-    "io.seon.unitysdk": "https://github.com/seontechnologies/seon-unity-sdk.git",
+    "io.seon.unitysdk": "https://github.com/seontechnologies/seon-unity-sdk-plugin.git?path=io.seon.unitysdk",
     "com.google.external-dependency-manager": "1.2.187"
   },
   "scopedRegistries": [
@@ -36,7 +36,7 @@ Add the following to your project's `Packages/manifest.json`:
 > **Note:** Merge the `dependencies` and `scopedRegistries` entries into your existing `manifest.json` — don't replace the entire file. The scoped registry entry tells Unity where to find EDM4U, which is required for resolving the native iOS (CocoaPods) and Android (Gradle/Maven) SEON SDK dependencies.
 
 **Alternative — `.unitypackage`:**
-Download from [Releases](https://github.com/seontechnologies/seon-unity-sdk/releases) and import. You'll also need to install [EDM4U](https://github.com/googlesamples/unity-jar-resolver) manually.
+Download from [Releases](https://github.com/seontechnologies/seon-unity-sdk-plugin/releases) and import. You'll also need to install [EDM4U](https://github.com/googlesamples/unity-jar-resolver) manually.
 
 ### 2. Integrate
 
@@ -185,12 +185,12 @@ SeonSDK.GetFingerprint(result =>
 
 The SEON Build Config controls Xcode post-build modifications. A default config asset is auto-created when needed. Open it via **Window → SEON → Build Config**.
 
-Options you can enable:
+The SeonSDK xcframework is **always embedded** (required for runtime linking). The config controls optional geolocation-related modifications:
 
 - Add `CoreLocation.framework`
 - Set `NSLocationWhenInUseUsageDescription` in Info.plist
 
-By default, post-build processing is **enabled** with geolocation features **disabled** — no Xcode modifications are made unless you explicitly enable them.
+By default, these geolocation features are **disabled** — enable them in the config if your integration uses geolocation.
 
 You can also configure these manually in Xcode.
 

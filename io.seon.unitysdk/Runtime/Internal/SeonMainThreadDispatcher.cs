@@ -28,42 +28,46 @@ namespace Seon {
             if (_instance == null) {
                 CreateDispatcher();
             }
+            DrainPendingQueue();
         }
 
-        internal static SeonMainThreadDispatcher Instance {
-            get {
-                // should never happen — AutoInit creates this at startup.
-                EnsureInitialized();
-                return _instance;
-            }
-        }
+        // Static fallback queue for actions enqueued before the dispatcher
+        // GameObject exists (e.g. off-main-thread before AutoInit).
+        private static readonly Queue<Action> _pendingQueue = new Queue<Action>();
+        private static readonly object _pendingLock = new object();
 
         /// <summary>
-        /// Ensure the dispatcher GameObject exists. Call this before any
-        /// async operation that will deliver callbacks on a background thread.
+        /// Enqueue an action to be executed on the next Update cycle.
+        /// Safe to call from any thread, even before the dispatcher is created.
         /// </summary>
-        internal static void EnsureInitialized() {
-            if (_instance != null) {
+        internal static void Enqueue(Action action) {
+            if (action == null) {
                 return;
             }
 
-            // Creating Unity objects is only allowed on the main thread.
-            // AutoInit (RuntimeInitializeOnLoadMethod) should have already
-            // created the instance. If we get here from a background thread,
-            // something went very wrong — log and bail rather than crash.
-            if (!IsMainThread()) {
-                Debug.LogError("[SeonSDK] EnsureInitialized called from a background thread " +
-                    "before the dispatcher was created. Callbacks will not be delivered.");
+            var instance = _instance;
+            if (instance != null) {
+                lock (instance._actionQueue) {
+                    instance._actionQueue.Enqueue(action);
+                }
                 return;
             }
 
-            Debug.LogWarning("[SeonSDK] Dispatcher was null — recreating. " +
-                "This should not happen in normal operation.");
-            CreateDispatcher();
-        }
-
-        private static bool IsMainThread() {
-            return Thread.CurrentThread.ManagedThreadId == _mainThreadId;
+            // _instance is null — either pre-AutoInit or destroyed mid-play.
+            // If we're on the main thread, re-create and drain pending queue.
+            if (_mainThreadId != 0 && Thread.CurrentThread.ManagedThreadId == _mainThreadId) {
+                CreateDispatcher();
+                DrainPendingQueue();
+                lock (_instance._actionQueue) {
+                    _instance._actionQueue.Enqueue(action);
+                }
+            }
+            else {
+                // Off main thread or pre-AutoInit — buffer until ready.
+                lock (_pendingLock) {
+                    _pendingQueue.Enqueue(action);
+                }
+            }
         }
 
         private static void CreateDispatcher() {
@@ -74,14 +78,18 @@ namespace Seon {
         }
 
         /// <summary>
-        /// Enqueue an action to be executed on the next Update cycle.
+        /// Drain any buffered pending actions into the instance's action queue.
+        /// Must be called from the main thread after _instance is set.
         /// </summary>
-        internal void Enqueue(Action action) {
-            if (action == null) {
-                return;
-            }
-            lock (_actionQueue) {
-                _actionQueue.Enqueue(action);
+        private static void DrainPendingQueue() {
+            lock (_pendingLock) {
+                if (_pendingQueue.Count > 0) {
+                    lock (_instance._actionQueue) {
+                        while (_pendingQueue.Count > 0) {
+                            _instance._actionQueue.Enqueue(_pendingQueue.Dequeue());
+                        }
+                    }
+                }
             }
         }
 
