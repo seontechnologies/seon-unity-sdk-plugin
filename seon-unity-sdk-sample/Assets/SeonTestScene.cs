@@ -45,11 +45,11 @@ public class SeonTestScene : MonoBehaviour {
     private bool _monitoringActive;
     private bool _loggingEnabled;
     private bool _geoEnabled;
+    private bool _locationPermissionRequested;
     private string _sessionId;
     private string _fingerprint;
 
     void Start() {
-        RequestLocationPermissions();
         Application.targetFrameRate = 120;
 
         // Wire up button listeners
@@ -70,7 +70,6 @@ public class SeonTestScene : MonoBehaviour {
         }
 
         if (toggleGeoButton) {
-            RequestLocationPermissions();
             toggleGeoButton.onClick.AddListener(OnToggleGeo);
         }
 
@@ -114,17 +113,23 @@ public class SeonTestScene : MonoBehaviour {
     }
 
     private void RequestLocationPermissions() {
+        if (_locationPermissionRequested) {
+            return;
+        }
+
         var _ = Input.location.isEnabledByUser;
 
 #if UNITY_ANDROID
         if (Permission.HasUserAuthorizedPermission(Permission.FineLocation)) {
             // The user already authorized location services.
+            _locationPermissionRequested = true;
             return;
         }
-        
+        _locationPermissionRequested = true;
         Log("Requesting Android Location Permission...", textDimColor);
         Permission.RequestUserPermission(Permission.FineLocation);
 #elif UNITY_IOS    
+        _locationPermissionRequested = true;
         if (Input.location.status == LocationServiceStatus.Stopped) {
             Log("Requesting iOS Location Permission...", textDimColor);
             // This triggers the native iOS location permission prompt 
@@ -238,6 +243,9 @@ public class SeonTestScene : MonoBehaviour {
     private void OnToggleGeo() {
         _geoEnabled = !_geoEnabled;
         try {
+            if (_geoEnabled) {
+                RequestLocationPermissions();
+            }
             SeonSDK.SetGeolocationConfig(new SeonGeolocationConfig {
                 Enabled = _geoEnabled,
                 PrefetchEnabled = _geoEnabled,
