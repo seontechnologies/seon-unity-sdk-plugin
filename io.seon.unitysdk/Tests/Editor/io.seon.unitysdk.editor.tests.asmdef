@@ -1,0 +1,27 @@
+{
+    "name": "io.seon.unitysdk.editor.tests",
+    "rootNamespace": "Seon.Tests.Editor",
+    "references": [
+        "io.seon.unitysdk",
+        "io.seon.unitysdk.editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Android",
+        "Editor",
+        "iOS"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

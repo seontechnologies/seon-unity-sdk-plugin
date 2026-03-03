@@ -1,0 +1,17 @@
+# Excluded from Unity Package Manager tarball distribution
+.*
+*.meta
+!*.md.meta
+!package.json.meta
+!*.dll.meta
+!*.asmdef.meta
+!*.cs.meta
+!*.mm.meta
+!*.java.meta
+!*.xml.meta
+!LICENSE.meta
+!Editor.meta
+!Runtime.meta
+
+Tests/
+Tests.meta

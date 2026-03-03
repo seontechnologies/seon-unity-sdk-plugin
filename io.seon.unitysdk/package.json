@@ -1,0 +1,23 @@
+{
+  "name": "io.seon.unitysdk",
+  "version": "1.0.0",
+  "displayName": "SEON Device Intelligence SDK",
+  "description": "Unity wrapper for SEON's native iOS and Android Device Intelligence SDKs. Provides device fingerprinting, behaviour monitoring, and geolocation for fraud prevention.",
+  "unity": "2022.3",
+  "unityRelease": "0f1",
+  "keywords": [
+    "seon",
+    "fraud",
+    "fingerprint",
+    "device-intelligence",
+    "anti-fraud"
+  ],
+  "author": {
+    "name": "SEON Technologies",
+    "url": "https://seon.io"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "com.google.external-dependency-manager": "1.2.187"
+  }
+}
