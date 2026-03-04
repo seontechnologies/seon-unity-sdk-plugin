@@ -175,7 +175,7 @@ jobs:
     name: "Build iOS Sample"
     runs-on: macos-latest
     needs: test
-    if: github.ref == 'refs/heads/master' || github.event_name == 'release'
+    if: github.ref == 'refs/heads/master' || github.event_name == 'release'  || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
