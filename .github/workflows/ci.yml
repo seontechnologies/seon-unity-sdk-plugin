@@ -162,12 +162,12 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: upm-package
+          name: seon-upm-package
           path: "io.seon.unitysdk-${{ steps.version.outputs.version }}.tgz"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: unity-package
+          name: seon-unity-package
           path: "io.seon.unitysdk-${{ steps.version.outputs.version }}.unitypackage"
 
   #  Build iOS Sample
@@ -239,11 +239,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: upm-package
+          name: seon-upm-package
 
       - uses: actions/download-artifact@v4
         with:
-          name: unity-package
+          name: seon-unity-package
 
       - name: Upload assets to Release
         uses: softprops/action-gh-release@v2
