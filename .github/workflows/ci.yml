@@ -11,6 +11,7 @@ on:
 env:
   UNITY_VERSION: "6000.0.38f1"
   PACKAGE_PATH: "io.seon.unitysdk"
+  UNITY_PROJECT_PATH: "seon-unity-sdk-sample"
 
 jobs:
   #  Unit Tests
@@ -22,7 +23,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: TestProject/Library
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
           key: library-${{ hashFiles('io.seon.unitysdk/**') }}
           restore-keys: library-
 
@@ -33,7 +34,7 @@ jobs:
         with:
           unityVersion: ${{ env.UNITY_VERSION }}
           testMode: EditMode
-          projectPath: TestProject
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
           customParameters: -nographics
           artifactsPath: test-results-editmode
 
@@ -44,7 +45,7 @@ jobs:
         with:
           unityVersion: ${{ env.UNITY_VERSION }}
           testMode: PlayMode
-          projectPath: TestProject
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
           customParameters: -nographics
           artifactsPath: test-results-playmode
 
@@ -96,11 +97,12 @@ jobs:
           OUT_NAME="io.seon.unitysdk-${{ steps.version.outputs.version }}.unitypackage"
           STAGING_DIR=$(mktemp -d)
 
-          # Walk all files that should be in the .unitypackage
-          # Include both the asset files and their .meta files
+          # Walk all non-meta files that should be in the .unitypackage
+          # .meta files are included as asset.meta entries, not standalone assets
           find "$PKG_DIR" -type f \
             ! -name '.npmignore' \
             ! -name '*.sln' \
+            ! -name '*.meta' \
             ! -path '*/Tests/*' \
             ! -path '*/.git/*' \
             | while read -r filepath; do
@@ -165,7 +167,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: TestProject/Library
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
           key: library-ios-${{ hashFiles('io.seon.unitysdk/**') }}
 
       - uses: game-ci/unity-builder@v4
@@ -174,7 +176,7 @@ jobs:
         with:
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: iOS
-          projectPath: TestProject
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -192,7 +194,7 @@ jobs:
 
       - uses: actions/cache@v4
         with:
-          path: TestProject/Library
+          path: ${{ env.UNITY_PROJECT_PATH }}/Library
           key: library-android-${{ hashFiles('io.seon.unitysdk/**') }}
 
       - uses: game-ci/unity-builder@v4
@@ -201,7 +203,7 @@ jobs:
         with:
           unityVersion: ${{ env.UNITY_VERSION }}
           targetPlatform: Android
-          projectPath: TestProject
+          projectPath: ${{ env.UNITY_PROJECT_PATH }}
 
       - uses: actions/upload-artifact@v4
         with:
