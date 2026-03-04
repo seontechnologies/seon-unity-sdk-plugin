@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  UNITY_VERSION: "6000.0.38f1"
+  UNITY_VERSION: "6000.3.7f1"
   PACKAGE_PATH: "io.seon.unitysdk"
   UNITY_PROJECT_PATH: "seon-unity-sdk-sample"
 
