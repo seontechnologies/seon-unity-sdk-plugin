@@ -200,6 +200,15 @@ You can also configure these manually in Xcode.
 
 The SDK returns mock fingerprints in the Unity Editor so you can test your integration flow without deploying to a device.
 
+## Sending the Fingerprint to SEON
+
+The fingerprint returned by `GetFingerprint` should be sent **from your backend server** to SEON's Fraud API as the `session` property. Never call the Fraud API directly from the client — your API key must remain secret.
+
+For full integration details, see the official SEON documentation:
+
+- [Device Intelligence Integration Guide](https://docs.seon.io/integration/device-intelligence) — end-to-end walkthrough of collecting and submitting fingerprints
+- [Fraud API Reference](https://docs.seon.io/api-reference/fraud-api) — request/response format, fields, and scoring
+
 ## Native SDK Documentation
 
 This Unity SDK is a wrapper around the native SEON mobile SDKs. For extensive details on specific error codes, geolocation status codes, and edge cases, please refer to the official SEON native documentation:
