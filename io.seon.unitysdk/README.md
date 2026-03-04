@@ -35,6 +35,8 @@ Add the following to your project's `Packages/manifest.json`:
 
 > **Note:** Merge the `dependencies` and `scopedRegistries` entries into your existing `manifest.json` — don't replace the entire file. The scoped registry entry tells Unity where to find EDM4U, which is required for resolving the native iOS (CocoaPods) and Android (Gradle/Maven) SEON SDK dependencies.
 
+> **Unity 6+:** You may see a "Missing Signature" popup — this is normal for third-party packages. Click **Close** to dismiss.
+
 **Alternative — `.unitypackage`:**
 Download from [Releases](https://github.com/seontechnologies/seon-unity-sdk-plugin/releases) and import. You'll also need to install [EDM4U](https://github.com/googlesamples/unity-jar-resolver) manually.
 

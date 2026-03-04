@@ -8,9 +8,7 @@
         "UnityEditor.TestRunner"
     ],
     "includePlatforms": [
-        "Android",
-        "Editor",
-        "iOS"
+        "Editor"
     ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

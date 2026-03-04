@@ -1,5 +1,7 @@
 using System;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Seon.Tests.Editor
 {
@@ -34,6 +36,7 @@ namespace Seon.Tests.Editor
         {
             // SDK should log error and not propagate to host app
             SeonSDK.SetSessionId("valid-session");
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*SetSessionId.*"));
             SeonSDK.SetSessionId(null);
             // Previous valid session should remain
             Assert.AreEqual("valid-session", _mockPlatform.LastSessionId);
@@ -43,6 +46,7 @@ namespace Seon.Tests.Editor
         public void SetSessionId_WithEmptyId_DoesNotThrow()
         {
             SeonSDK.SetSessionId("valid-session");
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*SetSessionId.*"));
             SeonSDK.SetSessionId("");
             Assert.AreEqual("valid-session", _mockPlatform.LastSessionId);
         }
@@ -78,6 +82,7 @@ namespace Seon.Tests.Editor
         [Test]
         public void SetGeolocationConfig_NullConfig_DoesNotThrow()
         {
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*SetGeolocationConfig.*"));
             Assert.DoesNotThrow(() => SeonSDK.SetGeolocationConfig(null));
         }
 
@@ -104,6 +109,7 @@ namespace Seon.Tests.Editor
         [Test]
         public void GetFingerprint_NullCallback_DoesNotThrow()
         {
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex(".*GetFingerprint.*"));
             Assert.DoesNotThrow(() => SeonSDK.GetFingerprint(null));
         }
 
