@@ -12,6 +12,10 @@
 !LICENSE.meta
 !Editor.meta
 !Runtime.meta
+!Internal.meta
+!Plugins.meta
+!iOS.meta
+!Android.meta
 
 Tests/
 Tests.meta
