@@ -1,0 +1,233 @@
+name: SEON Unity SDK CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  release:
+    types: [published]
+
+env:
+  UNITY_VERSION: "6000.0.38f1"
+  PACKAGE_PATH: "io.seon.unitysdk"
+
+jobs:
+  #  Unit Tests
+  test:
+    name: "EditMode + PlayMode Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: TestProject/Library
+          key: library-${{ hashFiles('io.seon.unitysdk/**') }}
+          restore-keys: library-
+
+      - name: EditMode Tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: EditMode
+          projectPath: TestProject
+          customParameters: -nographics
+          artifactsPath: test-results-editmode
+
+      - name: PlayMode Tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          testMode: PlayMode
+          projectPath: TestProject
+          customParameters: -nographics
+          artifactsPath: test-results-playmode
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-editmode
+          path: test-results-editmode
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-playmode
+          path: test-results-playmode
+
+  #  Package Assembly
+  assemble:
+    name: "Package UPM + .unitypackage"
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('${{ env.PACKAGE_PATH }}/package.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Package version: $VERSION"
+
+      #  UPM .tgz via npm pack
+      - name: Create UPM tarball
+        run: |
+          cd ${{ env.PACKAGE_PATH }}
+          npm pack
+          mv io.seon.unitysdk-${{ steps.version.outputs.version }}.tgz ../
+          cd ..
+          echo "📦 Created UPM tarball:"
+          ls -lh io.seon.unitysdk-${{ steps.version.outputs.version }}.tgz
+
+      #  .unitypackage via shell script
+      - name: Create .unitypackage
+        run: |
+          PKG_DIR="${{ env.PACKAGE_PATH }}"
+          OUT_NAME="io.seon.unitysdk-${{ steps.version.outputs.version }}.unitypackage"
+          STAGING_DIR=$(mktemp -d)
+
+          # Walk all files that should be in the .unitypackage
+          # Include both the asset files and their .meta files
+          find "$PKG_DIR" -type f \
+            ! -name '.npmignore' \
+            ! -name '*.sln' \
+            ! -path '*/Tests/*' \
+            ! -path '*/.git/*' \
+            | while read -r filepath; do
+
+            # Derive the Assets-relative path (how Unity sees it)
+            ASSET_PATH="Assets/Plugins/SEON/${filepath#$PKG_DIR/}"
+
+            # Extract or generate GUID
+            META_FILE="${filepath}.meta"
+            if [ -f "$META_FILE" ]; then
+              GUID=$(grep -oP 'guid: \K[a-f0-9]+' "$META_FILE" 2>/dev/null || echo "")
+            fi
+            if [ -z "$GUID" ]; then
+              GUID=$(python3 -c "import hashlib; print(hashlib.md5(b'$ASSET_PATH').hexdigest())")
+            fi
+
+            # Create the guid-based directory structure
+            ENTRY_DIR="$STAGING_DIR/$GUID"
+            mkdir -p "$ENTRY_DIR"
+
+            # pathname file — tells Unity where to place the asset
+            echo "$ASSET_PATH" > "$ENTRY_DIR/pathname"
+
+            # asset file — the actual file content
+            cp "$filepath" "$ENTRY_DIR/asset"
+
+            # asset.meta file — Unity metadata
+            if [ -f "$META_FILE" ]; then
+              cp "$META_FILE" "$ENTRY_DIR/asset.meta"
+            fi
+          done
+
+          # Pack into .unitypackage (which is just a tar.gz of guid directories)
+          cd "$STAGING_DIR"
+          tar -czf "$GITHUB_WORKSPACE/$OUT_NAME" ./*
+          cd "$GITHUB_WORKSPACE"
+
+          echo "📦 Created .unitypackage:"
+          ls -lh "$OUT_NAME"
+
+          # Cleanup
+          rm -rf "$STAGING_DIR"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upm-package
+          path: "io.seon.unitysdk-${{ steps.version.outputs.version }}.tgz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unity-package
+          path: "io.seon.unitysdk-${{ steps.version.outputs.version }}.unitypackage"
+
+  #  Build iOS Sample
+  build-ios:
+    name: "Build iOS Sample"
+    runs-on: macos-latest
+    needs: test
+    if: github.ref == 'refs/heads/master' || github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: TestProject/Library
+          key: library-ios-${{ hashFiles('io.seon.unitysdk/**') }}
+
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: iOS
+          projectPath: TestProject
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: build/iOS
+
+  #  Build Android Sample
+  build-android:
+    name: "Build Android Sample"
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/master' || github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: TestProject/Library
+          key: library-android-${{ hashFiles('io.seon.unitysdk/**') }}
+
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: ${{ env.UNITY_VERSION }}
+          targetPlatform: Android
+          projectPath: TestProject
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build
+          path: build/Android
+
+  #  Release
+  release:
+    name: "Publish Release Assets"
+    runs-on: ubuntu-latest
+    needs: [assemble]
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: upm-package
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: unity-package
+
+      - name: Upload assets to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            io.seon.unitysdk-*.tgz
+            io.seon.unitysdk-*.unitypackage
