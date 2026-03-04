@@ -18,7 +18,7 @@ jobs:
   #  Unit Tests
   test:
     name: "EditMode + PlayMode Tests"
-    runs-on: ubuntu-latest
+    runs-on: medium-runner
     steps:
       - uses: actions/checkout@v4
 
@@ -78,7 +78,7 @@ jobs:
   #  Package Assembly
   assemble:
     name: "Package UPM + .unitypackage"
-    runs-on: ubuntu-latest
+    runs-on: medium-runner
     needs: test
     steps:
       - uses: actions/checkout@v4
@@ -202,9 +202,9 @@ jobs:
   #  Build Android Sample
   build-android:
     name: "Build Android Sample"
-    runs-on: ubuntu-latest
+    runs-on: medium-runner
     needs: test
-    if: github.ref == 'refs/heads/master' || github.event_name == 'release'
+    if: github.ref == 'refs/heads/master' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -231,7 +231,7 @@ jobs:
   #  Release
   release:
     name: "Publish Release Assets"
-    runs-on: ubuntu-latest
+    runs-on: medium-runner
     needs: [assemble]
     if: github.event_name == 'release'
     permissions:
